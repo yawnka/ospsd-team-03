@@ -27,24 +27,28 @@ class IssueTrackerClient(abc.ABC):
     """Abstract contract for interacting with an issue tracker."""
 
     @abc.abstractmethod
-    def list_issues(self, repo: str) -> list[Issue]:
-        """Return all open issues for *repo*."""
+    def list_issues(self, board: str) -> list[Issue]:
+        """Return all open issues for *board*.
+
+        In Trello *board* is a board identifier; other providers may map it
+        differently (e.g. a project key or workspace slug).
+        """
 
     @abc.abstractmethod
-    def get_issue(self, repo: str, issue_id: int) -> Issue:
-        """Return the issue identified by *issue_id* in *repo*."""
+    def get_issue(self, board: str, issue_id: int) -> Issue:
+        """Return the issue identified by *issue_id* on *board*."""
 
     @abc.abstractmethod
-    def create_issue(self, repo: str, title: str, body: str) -> Issue:
-        """Open a new issue in *repo* and return the created record."""
+    def create_issue(self, board: str, title: str, body: str) -> Issue:
+        """Open a new issue on *board* and return the created record."""
 
     @abc.abstractmethod
-    def close_issue(self, repo: str, issue_id: int) -> None:
-        """Close the issue identified by *issue_id* in *repo*."""
+    def close_issue(self, board: str, issue_id: int) -> None:
+        """Close the issue identified by *issue_id* on *board*."""
 
     @abc.abstractmethod
-    def add_comment(self, repo: str, issue_id: int, body: str) -> Comment:
-        """Post a comment on *issue_id* in *repo* and return the created record."""
+    def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
+        """Post a comment on *issue_id* on *board* and return the created record."""
 
 
 _factories: list[Callable[[], IssueTrackerClient]] = []
