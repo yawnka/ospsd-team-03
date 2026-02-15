@@ -1,109 +1,170 @@
 ## Summary
 
-  HW2: Transform the local issue tracker library into a deployable microservice with
-  Trello authorization, FastAPI service, auto-generated client, and service client adapter.
+This PR completes the HW1 first-draft. We will be working on an issue tracker client based on Trello using uv.
 
-  ## Changes
+Additions/Changes Made:
+- Abstract API package  
+- Default implementation package  
+- Dependency injection wiring  
+- Repository restructure under `components/`  
+- CircleCI CI/CD configuration  
+- Integration and E2E tests  
+- MkDocs documentation  
 
-  ### Task 1: Trello Authorization (OAuth)
-  - Added `oauth.py` module with `build_authorization_url` for Trello's redirect-based
-  authorization flow (token delivered via URL fragment)
-  - Implemented `/auth/login`, `/auth/callback`, `/auth/token` endpoints in the FastAPI service
-  - Added in-memory session store for per-user Trello tokens
-  - Added CORS middleware for cross-origin browser requests
-  - Refactored `DefaultIssueTrackerClient` constructor to accept `api_key` and `token` as
-  parameters (supports per-user credential injection)
-  - Updated DI factory registration to use a lambda that reads env vars
-  - Added comprehensive unit tests for OAuth and auth endpoints
+All checks pass locally and in CircleCI.
 
-  ### Task 2: FastAPI Service
-  - Built FastAPI service exposing all core API endpoints over HTTP
-  - Endpoints: `/health`, `/boards/{board}/issues` (list, get, create, close), comments
-  - Request-scoped client dependency injection via `Depends()`
-  - Pydantic request/response schemas
-  - Custom error handling for missing environment variables
+---
 
-  ### Task 3: Auto-Generated Client + Service Client Adapter
-  - Generated type-safe HTTP client from OpenAPI spec using `openapi-python-client`
-  - Built `ServiceClientAdapter` implementing `IssueTrackerClient` ABC using the generated client
-  - Adapter provides location transparency (remote service usable through same contract as local library)
-  - DI auto-registration on import
+## Architecture
 
-  ### Task 4: Deployment + CircleCI
-  - Added multi-stage `Dockerfile` for production deployment
-  - Added `render.yaml` with service config, health check, and environment variable bindings
-  - Added CircleCI `deploy` job that triggers Render deploy hook and verifies `/health`
-  - Configured automatic deployment on push to `hw-2` branch
-  - Environment variables (`TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `REDIRECT_URI`) stored
-  via Render's native secrets manager
+The project is structured as two installable workspace packages:
 
-  ### Task 5: Docs + Cleanup
-  - Fixed mypy "source file found twice" error by removing spurious `src/__init__.py`
-  - Fixed ruff import sorting violation (I001) in `app.py`
-  - Added MkDocs documentation pages for service, service client, and adapter components
-  - Updated `mkdocs.yml` nav and plugin paths for all five components
-  - Updated `docs/index.md` to reflect full HW2 architecture
-  - Updated root `README.md` with all five components, project structure, and deployment section
-  - Fixed service `README.md`: removed DRAFT label, corrected OAuth provider from Google to Trello
+- `issue_tracker_client_api`
+  - Defines the abstract interface  
+  - Provides data models  
+  - Implements dependency injection registry  
 
-  ## Files Modified
+- `issue_tracker_client_impl`
+  - Implements the interface (stubbed for draft)  
+  - Auto-registers itself on import  
 
-  ### Task 1 (Trello Auth)
-  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/oauth.py` —
-  Trello authorization URL builder
-  - `components/issue_tracker_client_impl/tests/test_oauth.py` — OAuth unit tests
-  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/client.py` —
-  constructor now takes `api_key` and `token` params
-  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/__init__.py` — DI
-  registration uses lambda with env vars
-  - `components/issue_tracker_client_service/src/issue_tracker_client_service/app.py` —
-  auth endpoints + CORS middleware
-  - `components/issue_tracker_client_service/src/issue_tracker_client_service/auth.py` —
-  OAuth state management
-  - `components/issue_tracker_client_service/src/issue_tracker_client_service/session.py` —
-  in-memory session store
-  - `components/issue_tracker_client_service/src/issue_tracker_client_service/schemas.py` —
-  Pydantic models including `AuthStatusOut`
-  - `components/issue_tracker_client_service/tests/test_service.py` — auth + service tests
+Both packages use the layout:
 
-  ### Task 2 (FastAPI Service)
-  - `components/issue_tracker_client_service/` — full service component
+```
+components/<package>/src/<package>/
+```
 
-  ### Task 3 (Generated Client + Adapter)
-  - `components/issue_tracker_client_service_client/` — auto-generated OpenAPI client
-  - `components/issue_tracker_client_adapter/` — service client adapter
+---
 
-  ### Task 4 (Deployment)
-  - `Dockerfile` — multi-stage Docker build
-  - `render.yaml` — Render service configuration
-  - `.circleci/config.yml` — deploy job with health check verification
+## Dependency Injection
 
-  ### Task 5 (Docs + Cleanup)
-  - `components/issue_tracker_client_service/src/__init__.py` — removed (caused mypy duplicate module)
-  - `components/issue_tracker_client_service/src/issue_tracker_client_service/app.py` — fixed import sorting
-  - `components/issue_tracker_client_service/README.md` — removed DRAFT, corrected OAuth provider
-  - `README.md` — all five components, deployment section, updated project structure
-  - `mkdocs.yml` — added three new component pages to nav and plugin paths
-  - `docs/index.md` — updated to reflect full architecture
-  - `docs/components/issue_tracker_client_service.md` — new
-  - `docs/components/issue_tracker_client_service_client.md` — new
-  - `docs/components/issue_tracker_client_adapter.md` — new
+- The API package defines:
+  - `register(factory)`
+  - `get_client()`
 
-  ## Testing
+- The implementation registers `DefaultIssueTrackerClient` in `__init__.py`.
 
-  - [x] All unit tests pass (67 passed, 1 skipped)
-  - [x] Ruff passes (`ruff check .`)
-  - [x] MyPy passes (`mypy -p ... --explicit-package-bases`)
-  - [x] Coverage meets 85% threshold (94.10%)
-  - [x] MkDocs builds cleanly (`mkdocs build --strict`)
+- Importing `issue_tracker_client_impl` activates the implementation.
 
-  ## Notes for Reviewers
+Callers only depend on the API package:
 
-  - Auth provider is Trello's own redirect-based authorization (not a separate OAuth 2.0 provider)
-  - Trello delivers tokens via URL fragment — the `/auth/callback` endpoint returns an HTML
-  page with JS that extracts the token and POSTs it to `/auth/token`
-  - Tokens are stored in an in-memory session; token expiration is set to 30 days
-  - Env vars required: `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `REDIRECT_URI` —
-  shared privately, never committed
-  - Once a production URL is available, it must be added as an allowed origin in the
-  Trello Power-Up admin page (https://trello.com/power-ups/admin)
+```python
+import issue_tracker_client_api.client as api
+import issue_tracker_client_impl
+
+client = api.get_client()
+```
+
+---
+
+## Testing
+
+- Unit tests validate DI behavior.  
+- Integration test verifies implementation auto-registration.  
+- E2E tests validate:
+  - Required repository structure (`components/`)
+  - Python syntax validity of source files
+  - Import behavior in a subprocess
+  - Token-required behavior for client instantiation
+
+Coverage is approximately 85% and enforced in CI.
+
+---
+
+## CI/CD
+
+`.circleci/config.yml` includes:
+
+- Build step using `uv sync`
+- Linting with `ruff`
+- Static analysis with `mypy --strict`
+- Test execution with coverage threshold
+- Coverage report artifact generation
+
+All pipeline jobs pass.
+
+---
+
+## Documentation
+
+Added MkDocs setup:
+
+- `docs/` directory
+- `mkdocs.yml`
+- Component documentation pages:
+  - `docs/components/issue_tracker_client_api.md`
+  - `docs/components/issue_tracker_client_impl.md`
+- Updated root `README.md` with:
+  - Project structure
+  - Features section
+  - Setup instructions
+
+Documentation builds successfully using:
+
+```bash
+uv run mkdocs build
+```
+
+---
+
+## Local Verification
+
+```bash
+uv sync --all-packages --group dev
+uv run ruff check .
+uv run mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
+uv run pytest
+uv run mkdocs build
+```
+
+All commands complete successfully.
+
+
+
+
+# AFTER FIRST DRAFT
+## READMEs
+- Cleaned up and clarified project documentation
+- Improved README structure and formatting (root + component READMEs)
+- Clarified dependency injection and client construction workflow
+- Documented Trello authentication expectations
+- Standardized testing and coverage command examples
+- Minor spec/document consistency fixes
+
+## Testing Improvements
+- Aligned pytest markers across the codebase (unit, integration)
+- Registered custom markers in pyproject.toml for marker validation
+- Added assertion to ensure DI registry is populated before accessing factory
+- Removed hardcoded Trello board ID in E2E tests
+- E2E tests now rely on TRELLO_BOARD_ID environment variable
+
+## Documentation Enhancements (MkDocs)
+- Restructured docs/ to reflect component-based architecture
+- Updated index.md with:
+    -Project overview
+    -Workspace structure
+    -Navigation guidance
+- Added structured components.md documenting:
+    Interface vs implementation separation
+    Dependency Injection design
+    Workspace layout
+- Added testing.md:
+  - Marker strategy
+  - Unit vs integration vs E2E breakdown
+  - CI behavior
+- Updated API and implementation documentation pages
+- Standardized formatting and improved Markdown consistency
+- Ensured documentation builds cleanly without warnings
+
+## MkDocs Configuration Fixes
+- Added mkdocstrings[python] to dev dependency group
+- Synced uv workspace to install updated dev dependencies
+- Fixed mkdocs.yml handler configuration for mkdocstrings
+- Cleaned module directives to ensure proper rendering
+
+## Ruff docstring violations and rule conflicts fixes
+- Replace @pytest.fixture() with @pytest.fixture
+- Fix D205 and D210 docstring formatting issues
+- Remove magic number (PLR2004) in test assertion
+- Ignore D203 and D213 to prevent D203/D211 and D212/D213 conflicts
+

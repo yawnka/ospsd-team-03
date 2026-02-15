@@ -1,11 +1,11 @@
 """Default implementation of IssueTrackerClient."""
 
+import os
+
 import requests
 from issue_tracker_client_api.client import (
     Comment,
     Issue,
-    IssueCreateError,
-    IssueNotFoundError,
     IssueState,
     IssueTrackerClient,
 )
@@ -16,10 +16,10 @@ BASE_URL = "https://api.trello.com/1"
 class DefaultIssueTrackerClient(IssueTrackerClient):
     """Default concrete implementation of IssueTrackerClient."""
 
-    def __init__(self, api_key: str, token: str) -> None:
-        """Initialize api_key and token."""
-        self._api_key = api_key
-        self._api_token = token
+    def __init__(self) -> None:
+        """Initialize Trello client with credentials from environment variables."""
+        self._api_key: str = os.environ["TRELLO_API_KEY"]
+        self._api_token: str = os.environ["TRELLO_API_TOKEN"]
 
     def _auth_params(self) -> dict[str, str]:
         """Return the key/token query params needed for every Trello call."""
@@ -37,7 +37,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
             if card["idShort"] == issue_id:
                 return str(card["id"])
         msg = f"Card with idShort={issue_id} not found on board {board}"
-        raise IssueNotFoundError(msg)
+        raise ValueError(msg)
 
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for *board*."""
@@ -90,7 +90,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
         board_lists = lists_resp.json()
         if not board_lists:
             msg = f"Board {board} has no open lists"
-            raise IssueCreateError(msg)
+            raise ValueError(msg)
         target_list_id = board_lists[0]["id"]
 
         # Create the card
@@ -120,7 +120,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
 
         Raises:
             requests.HTTPError: If the API request fails.
-            IssueNotFoundError: If *issue_id* does not exist on *board*.
+            ValueError: If *issue_id* does not exist on *board*.
 
         """
         card_id = self._resolve_card_id(board, issue_id)
