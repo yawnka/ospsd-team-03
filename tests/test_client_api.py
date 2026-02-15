@@ -16,19 +16,19 @@ _COMMENT_ID = 42
 
 
 class _MockClient(IssueTrackerClient):
-    def list_issues(self, _repo: str) -> list[Issue]:
+    def list_issues(self, _board: str) -> list[Issue]:
         return []
 
-    def get_issue(self, _repo: str, _issue_id: int) -> Issue:
+    def get_issue(self, _board: str, _issue_id: int) -> Issue:
         raise NotImplementedError
 
-    def create_issue(self, _repo: str, _title: str, _body: str) -> Issue:
+    def create_issue(self, _board: str, _title: str, _body: str) -> Issue:
         raise NotImplementedError
 
-    def close_issue(self, _repo: str, _issue_id: int) -> None:
+    def close_issue(self, _board: str, _issue_id: int) -> None:
         raise NotImplementedError
 
-    def add_comment(self, _repo: str, _issue_id: int, _body: str) -> Comment:
+    def add_comment(self, _board: str, _issue_id: int, _body: str) -> Comment:
         raise NotImplementedError
 
 
@@ -71,4 +71,4 @@ def test_register_and_get_client() -> None:
     register(_MockClient)
     client = get_client()
     assert isinstance(client, _MockClient)
-    assert client.list_issues("owner/repo") == []
+    assert client.list_issues("my-board") == []
