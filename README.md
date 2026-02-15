@@ -31,6 +31,15 @@ uv run mypy .       # type-check (strict = true)
 uv run pytest       # test + coverage
 ```
 
+## API Concepts
+
+All client methods accept a `board` parameter as the primary scope identifier:
+
+- In **Trello**, `board` maps to a Trello board ID.
+- Other providers may map it differently (e.g. a project key, workspace slug).
+
+Issue types (`Issue`, `Comment`) remain provider-agnostic in the API layer.
+
 ## How DI Works
 
 Importing `issue_tracker_client_impl` auto-registers its factory into the API package:
@@ -40,4 +49,5 @@ import issue_tracker_client_impl          # side-effect: registers DefaultIssueT
 from issue_tracker_client_api.client import get_client
 
 client = get_client()                     # returns a DefaultIssueTrackerClient
+client.list_issues("my-trello-board-id")  # board = Trello board identifier
 ```
