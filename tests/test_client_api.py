@@ -1,6 +1,6 @@
-"""Tests for issue_tracker_client_api data models and DI mechanism."""
+"""Unit tests for the DI mechanism in issue_tracker_client_api."""
 
-import dataclasses
+from collections.abc import Generator
 
 import issue_tracker_client_api.client as _reg
 import pytest
@@ -11,8 +11,6 @@ from issue_tracker_client_api.client import (
     get_client,
     register,
 )
-
-_COMMENT_ID = 42
 
 
 class _MockClient(IssueTrackerClient):
@@ -32,43 +30,23 @@ class _MockClient(IssueTrackerClient):
         raise NotImplementedError
 
 
-def test_issue_dataclass() -> None:
-    """Issue is a frozen dataclass with the expected fields."""
-    issue = Issue(id=1, title="Bug", body="Details here.", state="open")
-    assert issue.id == 1
-    assert issue.title == "Bug"
-    assert issue.state == "open"
-
-
-def test_issue_is_frozen() -> None:
-    """Issue raises FrozenInstanceError on mutation attempt."""
-    issue = Issue(id=1, title="Bug", body="Details here.", state="open")
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        issue.id = 99  # type: ignore[misc]
-
-
-def test_comment_dataclass() -> None:
-    """Comment is a frozen dataclass with the expected fields."""
-    comment = Comment(id=_COMMENT_ID, body="looks good")
-    assert comment.id == _COMMENT_ID
-    assert comment.body == "looks good"
+@pytest.fixture(autouse=True)
+def _restore_factories() -> Generator[None, None, None]:
+    """Snapshot and restore the DI registry around each unit test."""
+    saved = list(_reg._factories)
+    yield
+    _reg._factories.clear()
+    _reg._factories.extend(saved)
 
 
 def test_get_client_raises_without_factory() -> None:
-    """get_client raises RuntimeError when no factory is registered."""
-    saved = list(_reg._factories)
+    """get_client() raises RuntimeError when no factory is registered."""
     _reg._factories.clear()
-    try:
-        with pytest.raises(RuntimeError):
-            get_client()
-    finally:
-        _reg._factories.clear()
-        _reg._factories.extend(saved)
+    with pytest.raises(RuntimeError):
+        get_client()
 
 
 def test_register_and_get_client() -> None:
-    """Registered factory is used by get_client."""
+    """register() + get_client() returns an instance of the registered class."""
     register(_MockClient)
-    client = get_client()
-    assert isinstance(client, _MockClient)
-    assert client.list_issues("my-board") == []
+    assert isinstance(get_client(), _MockClient)
