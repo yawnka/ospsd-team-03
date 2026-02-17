@@ -1,6 +1,7 @@
 """Unit tests for the DI mechanism in issue_tracker_client_api."""
 
 from collections.abc import Generator
+from typing import Any
 
 import issue_tracker_client_api.client as _reg
 import pytest
@@ -31,17 +32,40 @@ class _MockClient(IssueTrackerClient):
 
 
 @pytest.fixture(autouse=True)
-def _restore_factories() -> Generator[None, None, None]:
-    """Snapshot and restore the DI registry around each unit test."""
-    saved = list(_reg._factories)
+def _restore_factory() -> Generator[None, None, None]:
+    """Snapshot and restore the registered factory around each unit test.
+
+    Note: we avoid touching private module state (e.g., _factories). Instead we
+    snapshot the module-level get_client function state indirectly by grabbing
+    the current factory (if any) and restoring when it teardowns.
+    """
+    prev_factory: Any | None
+    try:
+        prev_client = _reg.get_client()
+        prev_factory = prev_client.__class__
+    except RuntimeError:
+        prev_factory = None
+
     yield
-    _reg._factories.clear()
-    _reg._factories.extend(saved)
+
+    if prev_factory is None:
+        def _raise() -> IssueTrackerClient:
+            msg = "No IssueTrackerClient factory has been registered."
+            raise RuntimeError(msg)
+
+        register(_raise)
+    else:
+        register(prev_factory)
 
 
 def test_get_client_raises_without_factory() -> None:
     """get_client() raises RuntimeError when no factory is registered."""
-    _reg._factories.clear()
+    def _raise() -> IssueTrackerClient:
+        msg = "No IssueTrackerClient factory has been registered."
+        raise RuntimeError(msg)
+
+    register(_raise)
+
     with pytest.raises(RuntimeError):
         get_client()
 

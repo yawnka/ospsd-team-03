@@ -1,0 +1,16 @@
+site_name: ospsd-team-03
+repo_name: ospsd-team-03
+repo_url: https://github.com/<your-org>/ospsd-team-03
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Components:
+      - issue_tracker_client_api: components/issue_tracker_client_api.md
+      - issue_tracker_client_impl: components/issue_tracker_client_impl.md
+
+markdown_extensions:
+  - toc:
+      permalink: true

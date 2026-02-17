@@ -5,6 +5,7 @@ file structure, import chains, Python syntax, DI wiring, and
 authentication behaviour.
 """
 
+import os
 import subprocess
 import sys
 from collections.abc import Generator
@@ -49,12 +50,12 @@ def test_application_structure_integrity() -> None:
     """All required source files exist in the workspace."""
     expected_files = [
         "pyproject.toml",
-        "src/issue_tracker_client_api/pyproject.toml",
-        "src/issue_tracker_client_api/src/issue_tracker_client_api/__init__.py",
-        "src/issue_tracker_client_api/src/issue_tracker_client_api/client.py",
-        "src/issue_tracker_client_impl/pyproject.toml",
-        "src/issue_tracker_client_impl/src/issue_tracker_client_impl/__init__.py",
-        "src/issue_tracker_client_impl/src/issue_tracker_client_impl/client.py",
+        "components/issue_tracker_client_api/pyproject.toml",
+        "components/issue_tracker_client_api/src/issue_tracker_client_api/__init__.py",
+        "components/issue_tracker_client_api/src/issue_tracker_client_api/client.py",
+        "components/issue_tracker_client_impl/pyproject.toml",
+        "components/issue_tracker_client_impl/src/issue_tracker_client_impl/__init__.py",
+        "components/issue_tracker_client_impl/src/issue_tracker_client_impl/client.py",
         "tests/e2e/test_main_application.py",
     ]
 
@@ -89,11 +90,11 @@ def test_all_imports_work() -> None:
 
 
 def test_source_files_syntax_valid() -> None:
-    """Every .py file under src/ has valid Python syntax."""
-    src_dir = WORKSPACE_ROOT / "src"
-    py_files = sorted(src_dir.rglob("*.py"))
+    """Every .py file under components/**/src has valid Python syntax."""
+    py_files = sorted((WORKSPACE_ROOT / "components").glob("*/src/**/*.py"))
 
-    assert py_files, "No .py files found under src/"
+
+    assert py_files, "No .py files found under components/**/src"
 
     for py_file in py_files:
         result = subprocess.run(  # noqa: S603
@@ -104,7 +105,11 @@ def test_source_files_syntax_valid() -> None:
             timeout=30,
         )
         if result.returncode != 0:
-            pytest.fail(f"Syntax error in {py_file.relative_to(WORKSPACE_ROOT)}:\n{result.stderr}")
+            pytest.fail(
+                f"Syntax error in {py_file.relative_to(WORKSPACE_ROOT)}:\n"
+                f"{result.stderr}"
+            )
+
 
 
 def test_di_full_flow_with_token() -> None:
@@ -125,7 +130,12 @@ def test_client_raises_without_token() -> None:
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
 
-    env = {k: v for k, v in __import__("os").environ.items() if k != "ISSUE_TRACKER_TOKEN"}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k != "ISSUE_TRACKER_TOKEN"
+    }
+
     with patch.dict("os.environ", env, clear=True):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
 
