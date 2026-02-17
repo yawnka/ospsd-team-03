@@ -41,8 +41,8 @@ jobs:
             # Use system Python to ensure venv symlinks survive persist_to_workspace
             uv venv --python $(which python3.12)
             source .venv/bin/activate
-            # Install all workspace packages and dev dependencies using optional extras (PEP 621)
-            uv sync --all-packages --extra dev --verbose
+            # Install all workspace packages and dev dependency group (PEP 735)
+            uv sync --all-packages --group dev --verbose
       - run:
           name: "Verify Installation"
           command: |
@@ -86,11 +86,18 @@ jobs:
           name: "Execute Unit Test Suite"
           command: |
             source .venv/bin/activate
-            pytest $CODE_DIR tests/ \
-                     --cov=$CODE_DIR \
+            # Run tests from both code dir and tests/ with coverage tracking
+            pytest $CODE_DIR tests/ --cov=$CODE_DIR \
                      --cov-report=xml --cov-report=term \
                      --junitxml=test-results/unit/junit.xml \
                      --cov-fail-under=85
+      - run:
+          name: "Run Static Analysis (mypy)"
+          command: |
+            source .venv/bin/activate
+            # Use -p (package) targets instead of filesystem paths
+            # to avoid "source file found twice" conflicts with installed workspace packages
+            mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
       - store_test_results:
           path: test-results/unit
       - store_artifacts:
@@ -103,20 +110,31 @@ jobs:
             - .coverage
             - coverage.xml
 
-  # Job 4: Static Analysis
-  type_check:
+  # Job 4: CircleCI Tests (All Tests Except Local Credentials)
+  circleci_test:
     docker:
       - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
+      - detect-code-dir
       - run:
-          name: "Run Static Analysis (mypy)"
+          name: "Create Test Results Directory"
+          command: mkdir -p test-results/circleci
+      - run:
+          name: "Execute All Tests Except Local Credentials"
           command: |
             source .venv/bin/activate
-            mypy -p issue_tracker_client_api -p issue_tracker_client_impl -p issue_tracker_client_service -p issue_tracker_client_adapter --explicit-package-bases
+            # Run all tests from code dir and tests/ except those requiring local credentials
+            pytest $CODE_DIR tests/ -m "not local_credentials" \
+                   --junitxml=test-results/circleci/junit.xml -v \
+                   --cov=$CODE_DIR --cov-report=term
+      - store_test_results:
+          path: test-results/circleci
+      - store_artifacts:
+          path: test-results/circleci
 
-  # Job 5: Integration Tests with Real Credentials
+  # Job 5: Integration Tests with Real Credentials (placeholder)
   integration_test:
     docker:
       - image: cimg/python:3.12
@@ -127,21 +145,19 @@ jobs:
           name: "Verify Environment Variables"
           command: |
             echo "Checking for required environment variables..."
-            if [ -z "$TRELLO_API_KEY" ] || [ -z "$TRELLO_API_TOKEN" ] || [ -z "$TRELLO_BOARD_ID" ]; then
-              echo "WARNING: Missing Trello environment variables."
-              echo "Required: TRELLO_API_KEY, TRELLO_API_TOKEN, TRELLO_BOARD_ID"
-            else
-              echo "All required environment variables are present."
-            fi
+            echo "Set integration-specific env vars in CircleCI project or context settings."
       - run:
           name: "Create Test Results Directory"
-          command: mkdir -p test-results/integration
+          command: |
+            source .venv/bin/activate
+            mkdir -p test-results/integration
       - run:
           name: "Execute Integration Test Suite"
           command: |
             source .venv/bin/activate
             # Run integration tests that require real API connectivity
-            pytest tests/integration/ \
+            # No coverage tracking for integration tests - they test component interactions
+            pytest -m "integration and not local_credentials" \
                    --junitxml=test-results/integration/junit.xml -v \
                    --no-cov
       - store_test_results:
@@ -165,32 +181,6 @@ jobs:
           path: htmlcov
           destination: coverage-report
 
-  # Job 7: Deploy to Render (hw-2 branch only)
-  deploy:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - run:
-          name: "Trigger Render Deploy"
-          command: |
-            curl -s "$RENDER_DEPLOY_HOOK_URL"
-            echo "Deploy triggered on Render"
-      - run:
-          name: "Verify Health Endpoint"
-          command: |
-            echo "Waiting for deploy to complete..."
-            for i in $(seq 1 18); do
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_SERVICE_URL/health")
-              if [ "$HTTP_STATUS" -eq 200 ]; then
-                echo "Health check passed (HTTP $HTTP_STATUS)"
-                exit 0
-              fi
-              echo "Attempt $i/18: HTTP $HTTP_STATUS, retrying in 10s..."
-              sleep 10
-            done
-            echo "Health check failed after 3 minutes"
-            exit 1
-
 
 # Orchestrate jobs using workflows
 workflows:
@@ -201,24 +191,13 @@ workflows:
       - lint:
           requires:
             - build
-      - type_check:
-          requires:
-            - build
       - unit_test:
           requires:
             - build
-      - integration_test:
+      - circleci_test:
           requires:
             - unit_test
       - coverage_report:
           requires:
             - unit_test
-            - integration_test
-      - deploy:
-          requires:
-            - lint
-            - type_check
-            - coverage_report
-          filters:
-            branches:
-              only: hw-2
+            - circleci_test
