@@ -2,10 +2,7 @@
 name = "issue-tracker-client-impl"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["issue-tracker-client-api", "requests>=2.31"]
-
-[project.optional-dependencies]
-dev = ["types-requests>=2.31"]
+dependencies = ["issue-tracker-client-api"]
 
 [build-system]
 requires = ["hatchling"]
