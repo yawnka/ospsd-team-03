@@ -1,65 +1,40 @@
-# Issue Tracker Client API
+# issue_tracker_client_api
+
+# DRAFT VERSION of what we might do
 
 ## Overview
 
-This package defines the provider-agnostic **interface** for an issue tracker client.
+This package defines the abstract interface for an issue tracker.
 
-It includes:  
+It contains:
+- `Issue` and `Comment` data models
+- `IssueTrackerClient` (an abstract base class)
+- `register()` and `get_client()` for dependency injection
 
-- Immutable domain models: `Issue`, `Comment`, `IssueState` 
-- `IssueTrackerClient` abstract base class (ABC)
-- A tiny dependency-injection hook: `register()` / `get_client()`
+The API does not depend on Trello or any other provider.
 
-This package has **no Trello (or other provider) dependencies**.
+---
 
-## Purpose
-- Keep the public contract small and stable
-- Allow multiple implementations (Trello now, others later)
-- Make testing easy by mocking the interface
+## Interface
 
+`IssueTrackerClient` defines:
 
-## Architecture
+- `list_issues(...)`
+- `get_issue(...)`
+- `create_issue(...)`
+- `close_issue(...)`
+- `add_comment(...)`
 
-### Component Design
-`IssueTrackerClient` focuses on a minimal set of operations:
-- list issues for a board
-- fetch a single issue
-- create and close issues
-- add a comment
+Any implementation must implement these methods.
 
-All inputs/outputs use only the domain models in this package.
+---
 
-### Dependency Injection
-Implementation packages register a factory at import time:
+## Dependency Injection
 
-```python
-import issue_tracker_client_impl  # registers a factory via issue_tracker_client_api.client.register
-from issue_tracker_client_api.client import get_client
+The API provides:
 
-client = get_client()
-```
+- `register(factory)`
+- `get_client()`
 
-If no factory is registered, `get_client()` raises `RuntimeError`.
-
-
-## API Reference
-::: issue_tracker_client_api.client
-    options:
-        show_root_heading: true
-        show_source: false
-
-## Usage Examples
-
-### Basic Listing
-```python
-from issue_tracker_client_api.client import get_client
-
-client = get_client()
-for issue in client.list_issues("my_board"):
-    print(issue.id, issue.title)
-```
-
-## Testing
-```bash
-uv run pytest components/issue_tracker_client_api/tests/ -q
-```
+`register()` installs an implementation.
+`get_client()` returns an instance of the registered implementation.
