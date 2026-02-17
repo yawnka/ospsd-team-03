@@ -50,4 +50,11 @@ from issue_tracker_client_api.client import get_client
 
 client = get_client()                     # returns a DefaultIssueTrackerClient
 client.list_issues("my-trello-board-id")  # board = Trello board identifier
-```
+
+
+## Recent Changes (HW1)
+
+### E2E Tests - Hyun Sang Ryu
+- Added end-to-end test suite (`tests/e2e/test_main_application.py`)
+- Validates full application workflow with Trello integration
+- Registered e2e pytest marker in `pyproject.toml````
