@@ -86,18 +86,11 @@ jobs:
           name: "Execute Unit Test Suite"
           command: |
             source .venv/bin/activate
-            # Run tests from both code dir and tests/ with coverage tracking
-            pytest $CODE_DIR tests/ --cov=$CODE_DIR \
+            pytest $CODE_DIR tests/ -m "not local_credentials" \
+                     --cov=$CODE_DIR \
                      --cov-report=xml --cov-report=term \
                      --junitxml=test-results/unit/junit.xml \
                      --cov-fail-under=85
-      - run:
-          name: "Run Static Analysis (mypy)"
-          command: |
-            source .venv/bin/activate
-            # Use -p (package) targets instead of filesystem paths
-            # to avoid "source file found twice" conflicts with installed workspace packages
-            mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
       - store_test_results:
           path: test-results/unit
       - store_artifacts:
@@ -110,29 +103,18 @@ jobs:
             - .coverage
             - coverage.xml
 
-  # Job 4: CircleCI Tests (All Tests Except Local Credentials)
-  circleci_test:
+  # Job 4: Static Analysis
+  type_check:
     docker:
       - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
-      - detect-code-dir
       - run:
-          name: "Create Test Results Directory"
-          command: mkdir -p test-results/circleci
-      - run:
-          name: "Execute All Tests Except Local Credentials"
+          name: "Run Static Analysis (mypy)"
           command: |
             source .venv/bin/activate
-            # Run all tests from code dir and tests/ except those requiring local credentials
-            pytest $CODE_DIR tests/ -m "not local_credentials" \
-                   --junitxml=test-results/circleci/junit.xml -v \
-                   --cov=$CODE_DIR --cov-report=term
-      - store_test_results:
-          path: test-results/circleci
-      - store_artifacts:
-          path: test-results/circleci
+            mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
 
   # Job 5: Integration Tests with Real Credentials (placeholder)
   integration_test:
@@ -157,7 +139,7 @@ jobs:
             source .venv/bin/activate
             # Run integration tests that require real API connectivity
             # No coverage tracking for integration tests - they test component interactions
-            pytest -m "integration and not local_credentials" \
+            pytest -m "local_credentials" \
                    --junitxml=test-results/integration/junit.xml -v \
                    --no-cov
       - store_test_results:
@@ -191,13 +173,12 @@ workflows:
       - lint:
           requires:
             - build
+      - type_check:
+          requires:
+            - build
       - unit_test:
           requires:
             - build
-      - circleci_test:
-          requires:
-            - unit_test
       - coverage_report:
           requires:
             - unit_test
-            - circleci_test
