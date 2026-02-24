@@ -1,6 +1,6 @@
 site_name: ospsd-team-03
 repo_name: ospsd-team-03
-repo_url: https://github.com/<your-org>/ospsd-team-03
+repo_url: https://github.com/yawnka/ospsd-team-03
 
 theme:
   name: material

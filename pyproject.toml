@@ -68,3 +68,8 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 85 # Justification: A high threshold ensures most code is tested.
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+]
