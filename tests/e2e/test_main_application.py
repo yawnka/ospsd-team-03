@@ -93,7 +93,6 @@ def test_source_files_syntax_valid() -> None:
     """Every .py file under components/**/src has valid Python syntax."""
     py_files = sorted((WORKSPACE_ROOT / "components").glob("*/src/**/*.py"))
 
-
     assert py_files, "No .py files found under components/**/src"
 
     for py_file in py_files:
@@ -109,7 +108,6 @@ def test_source_files_syntax_valid() -> None:
                 f"Syntax error in {py_file.relative_to(WORKSPACE_ROOT)}:\n"
                 f"{result.stderr}"
             )
-
 
 
 def test_di_full_flow_with_token() -> None:
@@ -130,14 +128,10 @@ def test_client_raises_without_token() -> None:
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
 
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k != "ISSUE_TRACKER_TOKEN"
-    }
+    env = {k: v for k, v in os.environ.items() if k not in ("TRELLO_API_KEY", "TRELLO_API_TOKEN")}
 
     with patch.dict("os.environ", env, clear=True):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
 
-        with pytest.raises(KeyError, match="ISSUE_TRACKER_TOKEN"):
+        with pytest.raises(KeyError, match="TRELLO_API_KEY"):
             _api.get_client()

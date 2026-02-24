@@ -20,7 +20,8 @@ def _isolate_registry() -> Generator[None, None, None]:
 
 def test_importing_impl_registers_factory() -> None:
     """Importing issue_tracker_client_impl registers DefaultIssueTrackerClient."""
-    assert not _api._factories                            # cleared by fixture
+    assert not _api._factories  # cleared by fixture
     sys.modules.pop("issue_tracker_client_impl", None)
     import issue_tracker_client_impl  # noqa: PLC0415, F401
+
     assert _api._factories[0] is DefaultIssueTrackerClient
