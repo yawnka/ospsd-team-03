@@ -1,7 +1,7 @@
 # Python Application: A Component-Based Issue Tracker Client
 
 [![CircleCI](https://circleci.com/gh/yawnka/ospsd-team-03.svg?style=shield)](https://circleci.com/gh/yawnka/ospsd-team-03)
-<!-- [![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/ivanearisty/oss-taapp) -->
+[![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/ivanearisty/oss-taapp)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
@@ -156,15 +156,14 @@ All commands should be run from the project root with the virtual environment ac
     ```
 
 -   **Static Type Checking (MyPy):**
-    <!-- ```bash
-    uv run mypy src tests
-    ``` -->
+    ```bash
+    uv run mypy .
+    ```
 
 -   **Testing (Pytest):**
 
-    <!-- I'd recommend only running: `uv run pytest src/ tests/ -m "not local_credentials" -v` for simplicity.
+    The project uses a comprehensive testing strategy.
 
-    The project uses a comprehensive testing strategy with different test categories.
     ```bash
     # Run all tests (includes unit, integration, and e2e tests)
     uv run pytest
@@ -181,12 +180,9 @@ All commands should be run from the project root with the virtual environment ac
     # Run only end-to-end tests (requires credentials)
     uv run pytest -m e2e
 
-    # Run only CircleCI-compatible tests (CI/CD environment)
-    uv run pytest -m circleci
-
     # Run tests with coverage reporting
-    uv run pytest --cov=src --cov-report=term-missing
-    ``` -->
+    uv run pytest --cov=components --cov-report=term-missing
+    ```
 
 ### Viewing Documentation
 
@@ -203,43 +199,41 @@ The project implements a sophisticated testing strategy designed for both local 
 
 ### Test Categories
 
-- **Unit Tests** (`src/*/tests/`): Fast, isolated tests with mocked dependencies
+- **Unit Tests** (`components/*/tests/`): Fast, isolated tests with mocked dependencies
 - **Integration Tests** (`tests/integration/`): Tests that verify component interactions
 - **End-to-End Tests** (`tests/e2e/`): Full application workflow tests
-<!-- - **CircleCI Tests**: CI/CD-compatible tests that handle missing credentials gracefully
-- **Local Credentials Tests**: Tests that require `credentials.json` or `token.json` files -->
 
 ### Test Markers
 
-<!-- The project uses pytest markers to categorize tests:
+The project uses pytest markers to categorize tests:
 ```bash
 @pytest.mark.unit              # Fast unit tests
 @pytest.mark.integration       # Integration tests
-@pytest.mark.e2e              # End-to-end tests
-@pytest.mark.circleci         # CI/CD compatible
-@pytest.mark.local_credentials # Requires local auth files
-``` -->
+@pytest.mark.e2e               # End-to-end tests
+```
 
 ### Authentication in Tests
 
 The testing infrastructure handles different authentication scenarios:
-- **Local Development**: Uses `.env` file or set `TRELLO_API_KEY` and `TRELLO_API_TOKEN` 
-<!-- - **CI/CD Environment**: Uses environment variables (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`)
-- **Missing Credentials**: Tests fail fast with clear error messages (no hanging) -->
+- **Local Development**:  Requires `TRELLO_API_KEY` and `TRELLO_API_TOKEN` set via environment variables or a `.env` file
+- **CI/CD Environment**: Set environment variables (`TRELLO_API_KEY`, `TRELLO_API_TOKEN`) in CircleCI project settings
+- **Missing Credentials**: Tests fail fast with clear error messages (no hanging)
 
 ## Continuous Integration
 
 The project includes a comprehensive CircleCI configuration (`.circleci/config.yml`) with:
 
-<!-- - **All Branches**: Unit tests, linting, and CI-compatible tests
-- **Main/Develop**: Additional integration tests with real Gmail API calls
-- **Artifacts**: Coverage reports, test results, and build summaries
+- Runs Ruff (linting)
+- Runs MyPy (strict mode)
+- Runs all tests (unit, integration, E2E)
+- Stores test results in CircleCI dashboard
+- Uploads coverage reports
 
-See `docs/circleci-setup.md` for detailed CI/CD setup instructions. -->
+See `docs/circleci-setup.md` for detailed CI/CD setup instructions.
 
 
 ## Quick Start
-1. **Install dependencies**: `uv sync --all-packages --extra dev`
+1. **Install dependencies**: `uv sync --all-packages --group dev`
 2. **Run tests**: `uv run pytest tests/ -v` or `uv run pytest components/ tests/ -m "not local_credentials" -v`
 3. **Check code quality**: `uv run ruff check . && uv run ruff format --check .`
 4. **Fix formatting**: `uv run ruff format .`
@@ -250,68 +244,3 @@ See `docs/circleci-setup.md` for detailed CI/CD setup instructions. -->
 - Use integration tests (`uv run pytest -m integration`) to verify component interactions
 - Run full test suite (`uv run pytest`) before pushing to ensure CI compatibility
 - The CircleCI pipeline provides automated validation on every push
-
-
-<!-- ## What This Repo Provides
-
-Two installable Python components under ` \components ` using a `uv` workspace:
-
-| Package | Purpose |
-|---------|---------|
-| `issue_tracker_client_api` | Provider-agnostic abstract interface (ABC) + DI hooks |
-| `issue_tracker_client_impl` | Concrete implementation; reads token from `ISSUE_TRACKER_TOKEN` env var |
-
-Consumers should depend only on the interface component. 
-The implementation component is imported only to register itself via Dependency Injection. -->
-
-
-
-<!-- 
-## Quickstart
-
-```sh
-uv sync             # install workspace + dev deps
-uv run ruff check . # lint  (select = ALL)
-uv run mypy .       # type-check (strict = true)
-uv run pytest       # test + coverage
-```
-
-## API Concepts
-
-All client methods accept a `board` parameter as the primary scope identifier:
-
-- In **Trello**, `board` maps to a Trello board ID.
-- Other providers may map it differently (e.g. a project key, workspace slug).
-
-Issue types (`Issue`, `Comment`) remain provider-agnostic in the API layer.
-
-## How DI Works
-
-Importing `issue_tracker_client_impl` auto-registers its factory into the API package:
-
-```python
-import issue_tracker_client_impl          # side-effect: registers DefaultIssueTrackerClient
-from issue_tracker_client_api.client import get_client
-
-client = get_client()                     # returns a DefaultIssueTrackerClient
-client.list_issues("my-trello-board-id")  # board = Trello board identifier
-```
-## Recent Changes (HW1)
-
-### E2E Tests - Hyun Sang Ryu
-- Added end-to-end test suite (`tests/e2e/test_main_application.py`)
-- Validates full application workflow with Trello integration
-- Registered e2e pytest marker in `pyproject.toml`
-
-## Features
-
-- Provider-agnostic Issue Tracker interface using Abstract Base Classes
-- Trello-based concrete implementation
-- Dependency Injection via factory registration
-- Unit tests for each component
-- Integration tests verifying DI wiring
-- End-to-end (E2E) tests for full Trello workflow
-- Strict static analysis (Ruff + Mypy strict mode)
-- Coverage reporting with threshold enforcement
-- uv-based workspace dependency management -->
-
