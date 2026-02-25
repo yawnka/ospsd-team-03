@@ -3,7 +3,12 @@
 import os
 
 import requests
-from issue_tracker_client_api.client import Comment, Issue, IssueState, IssueTrackerClient
+from issue_tracker_client_api.client import (
+    Comment,
+    Issue,
+    IssueState,
+    IssueTrackerClient,
+)
 
 BASE_URL = "https://api.trello.com/1"
 
@@ -116,6 +121,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
         Raises:
             requests.HTTPError: If the API request fails.
             ValueError: If *issue_id* does not exist on *board*.
+
         """
         card_id = self._resolve_card_id(board, issue_id)
         resp = requests.put(
