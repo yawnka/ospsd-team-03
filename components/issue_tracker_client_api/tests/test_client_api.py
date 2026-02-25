@@ -23,7 +23,7 @@ class _MockClient(IssueTrackerClient):
     def create_issue(self, _board: str, _title: str, _body: str) -> Issue:
         raise NotImplementedError
 
-    def close_issue(self, _board: str, _issue_id: int) -> None:
+    def close_issue(self, _board: str, _issue_id: int) -> bool:
         raise NotImplementedError
 
     def add_comment(self, _board: str, _issue_id: int, _body: str) -> Comment:

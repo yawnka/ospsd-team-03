@@ -1,8 +1,16 @@
 """Abstract contract for an issue-tracker client."""
 
 import abc
+import enum
 from collections.abc import Callable
 from dataclasses import dataclass
+
+
+class IssueState(enum.Enum):
+    """Lifecycle states for an issue."""
+
+    OPEN = "open"
+    CLOSED = "closed"
 
 
 @dataclass(frozen=True)
@@ -12,7 +20,7 @@ class Issue:
     id: int
     title: str
     body: str
-    state: str
+    state: IssueState
 
 
 @dataclass(frozen=True)
@@ -30,8 +38,8 @@ class IssueTrackerClient(abc.ABC):
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for *board*.
 
-        In Trello *board* is a board identifier; other providers may map it
-        differently (e.g. a project key or workspace slug).
+        *board* is a provider-specific string identifier (e.g. a project key,
+        workspace slug, or repository name) used solely as a lookup key.
         """
 
     @abc.abstractmethod
@@ -43,8 +51,12 @@ class IssueTrackerClient(abc.ABC):
         """Open a new issue on *board* and return the created record."""
 
     @abc.abstractmethod
-    def close_issue(self, board: str, issue_id: int) -> None:
-        """Close the issue identified by *issue_id* on *board*."""
+    def close_issue(self, board: str, issue_id: int) -> bool:
+        """Close the issue identified by *issue_id* on *board*.
+
+        Returns True if the issue was successfully closed.
+        Raises on failure.
+        """
 
     @abc.abstractmethod
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
@@ -55,9 +67,11 @@ _factories: list[Callable[[], IssueTrackerClient]] = []
 
 
 def register(factory: Callable[[], IssueTrackerClient]) -> None:
-    """Register a callable that produces an IssueTrackerClient.
+    """Register a no-arg callable that produces an IssueTrackerClient.
 
-    Replaces any previously registered factory.
+    *factory* may be a plain function or a class with a no-arg constructor
+    (i.e. one that reads config from the environment rather than __init__
+    parameters). Replaces any previously registered factory.
     """
     _factories.clear()
     _factories.append(factory)

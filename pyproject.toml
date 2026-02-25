@@ -55,7 +55,7 @@ exclude = [
 
 # ── Pytest ───────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "components"]
 addopts = ["--cov", "--cov-report=term-missing"]
 markers = [
     "e2e: marks tests as end-to-end tests (slow, full system)",
