@@ -3,7 +3,7 @@
 import os
 
 import requests
-from issue_tracker_client_api.client import Comment, Issue, IssueTrackerClient
+from issue_tracker_client_api.client import Comment, Issue, IssueState, IssueTrackerClient
 
 BASE_URL = "https://api.trello.com/1"
 
@@ -51,7 +51,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
                 id=card["idShort"],
                 title=card["name"],
                 body=card.get("desc", ""),
-                state="closed" if card.get("closed") else "open",
+                state=IssueState.CLOSED if card.get("closed") else IssueState.OPEN,
             )
             for card in resp.json()
         ]
@@ -70,7 +70,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
             id=card["idShort"],
             title=card["name"],
             body=card.get("desc", ""),
-            state="closed" if card.get("closed") else "open",
+            state=IssueState.CLOSED if card.get("closed") else IssueState.OPEN,
         )
 
     def create_issue(self, board: str, title: str, body: str) -> Issue:
@@ -105,11 +105,18 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
             id=card["idShort"],
             title=card["name"],
             body=card.get("desc", ""),
-            state="open",
+            state=IssueState.OPEN,
         )
 
-    def close_issue(self, board: str, issue_id: int) -> None:
-        """Close the issue identified by *issue_id* on *board*."""
+    def close_issue(self, board: str, issue_id: int) -> bool:
+        """Close the issue identified by *issue_id* on *board*.
+
+        Returns True if the issue was successfully closed.
+
+        Raises:
+            requests.HTTPError: If the API request fails.
+            ValueError: If *issue_id* does not exist on *board*.
+        """
         card_id = self._resolve_card_id(board, issue_id)
         resp = requests.put(
             f"{BASE_URL}/cards/{card_id}",
@@ -117,6 +124,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
             timeout=30,
         )
         resp.raise_for_status()
+        return True
 
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
         """Post a comment on *issue_id* on *board* and return the created record."""
