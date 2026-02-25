@@ -115,7 +115,10 @@ def test_di_full_flow_with_token() -> None:
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
 
-    with patch.dict("os.environ", {"ISSUE_TRACKER_TOKEN": "test-token-e2e"}):
+    with patch.dict(
+        "os.environ",
+        {"TRELLO_API_KEY": "test-key-e2e", "TRELLO_API_TOKEN": "test-token-e2e"},
+    ):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
 
         client = _api.get_client()
@@ -128,7 +131,8 @@ def test_client_raises_without_token() -> None:
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
 
-    env = {k: v for k, v in os.environ.items() if k not in ("TRELLO_API_KEY", "TRELLO_API_TOKEN")}
+    skip = {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
+    env = {k: v for k, v in os.environ.items() if k not in skip}
 
     with patch.dict("os.environ", env, clear=True):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
