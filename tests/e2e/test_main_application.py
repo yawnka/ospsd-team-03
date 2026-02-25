@@ -80,7 +80,7 @@ def test_all_imports_work() -> None:
         check=False,
         timeout=30,
         cwd=str(WORKSPACE_ROOT),
-        env={**__import__("os").environ, "ISSUE_TRACKER_TOKEN": "dummy"},
+        env={**__import__("os").environ, "TRELLO_API_KEY": "dummy"},
     )
 
     if result.returncode != 0:
@@ -127,12 +127,13 @@ def test_di_full_flow_with_token() -> None:
 
 
 def test_client_raises_without_token() -> None:
-    """DefaultIssueTrackerClient raises KeyError when ISSUE_TRACKER_TOKEN is absent."""
+    """DefaultIssueTrackerClient raises KeyError when TRELLO_API_KEY is absent."""
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
 
     skip = {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
     env = {k: v for k, v in os.environ.items() if k not in skip}
+
 
     with patch.dict("os.environ", env, clear=True):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
