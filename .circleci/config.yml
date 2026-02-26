@@ -86,7 +86,7 @@ jobs:
           name: "Execute Unit Test Suite"
           command: |
             source .venv/bin/activate
-            pytest $CODE_DIR tests/ -m "not local_credentials" \
+            pytest $CODE_DIR tests/ \
                      --cov=$CODE_DIR \
                      --cov-report=xml --cov-report=term \
                      --junitxml=test-results/unit/junit.xml \
@@ -116,7 +116,7 @@ jobs:
             source .venv/bin/activate
             mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
 
-  # Job 5: Integration Tests with Real Credentials (placeholder)
+  # Job 5: Integration Tests with Real Credentials
   integration_test:
     docker:
       - image: cimg/python:3.12
@@ -127,19 +127,21 @@ jobs:
           name: "Verify Environment Variables"
           command: |
             echo "Checking for required environment variables..."
-            echo "Set integration-specific env vars in CircleCI project or context settings."
+            if [ -z "$TRELLO_API_KEY" ] || [ -z "$TRELLO_API_TOKEN" ] || [ -z "$TRELLO_BOARD_ID" ]; then
+              echo "WARNING: Missing Trello environment variables."
+              echo "Required: TRELLO_API_KEY, TRELLO_API_TOKEN, TRELLO_BOARD_ID"
+            else
+              echo "All required environment variables are present."
+            fi
       - run:
           name: "Create Test Results Directory"
-          command: |
-            source .venv/bin/activate
-            mkdir -p test-results/integration
+          command: mkdir -p test-results/integration
       - run:
           name: "Execute Integration Test Suite"
           command: |
             source .venv/bin/activate
             # Run integration tests that require real API connectivity
-            # No coverage tracking for integration tests - they test component interactions
-            pytest -m "local_credentials" \
+            pytest tests/integration/ \
                    --junitxml=test-results/integration/junit.xml -v \
                    --no-cov
       - store_test_results:
@@ -179,6 +181,9 @@ workflows:
       - unit_test:
           requires:
             - build
+      - integration_test:
+          requires:
+            - unit_test
       - coverage_report:
           requires:
             - unit_test
