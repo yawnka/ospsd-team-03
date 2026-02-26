@@ -187,3 +187,4 @@ workflows:
       - coverage_report:
           requires:
             - unit_test
+            - integration_test
