@@ -21,7 +21,7 @@ from issue_tracker_client_api.client import Comment, Issue, IssueState
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
 FAKE_KEY = "fake-trello-api-key"
-FAKE_TOKEN = "fake-trello-api-token"
+FAKE_TOKEN = "fake-trello-api-token" # noqa: S105
 BOARD_ID = "board-abc123"
 CARD_SHORT_ID = 42
 CARD_FULL_ID = "abcdef1234567890abcdef12"
@@ -59,14 +59,16 @@ def _make_comment_payload(text: str = "A comment") -> dict:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def client() -> DefaultIssueTrackerClient:
     """Return a DefaultIssueTrackerClient with both Trello credentials injected."""
-    with patch.dict(os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}):
+    with patch.dict(
+        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
+    ):
         return DefaultIssueTrackerClient()
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_requests() -> MagicMock:
     """Patch the entire requests module inside the impl package."""
     with patch("issue_tracker_client_impl.client.requests") as m:
@@ -80,22 +82,33 @@ def mock_requests() -> MagicMock:
 
 def test_init_stores_api_key() -> None:
     """TRELLO_API_KEY is stored as _api_key after construction."""
-    with patch.dict(os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}):
+    with patch.dict(
+        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
+    ):
         c = DefaultIssueTrackerClient()
     assert c._api_key == FAKE_KEY
 
 
 def test_init_stores_api_token() -> None:
     """TRELLO_API_TOKEN is stored as _api_token after construction."""
-    with patch.dict(os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}):
+    with patch.dict(
+        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
+    ):
         c = DefaultIssueTrackerClient()
     assert c._api_token == FAKE_TOKEN
 
 
 def test_init_raises_when_api_key_missing() -> None:
     """Construction raises KeyError when TRELLO_API_KEY is absent."""
-    env = {k: v for k, v in os.environ.items() if k not in {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}}
-    with patch.dict(os.environ, env, clear=True), pytest.raises(KeyError, match="TRELLO_API_KEY"):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
+    }
+    with (
+        patch.dict(os.environ, env, clear=True),
+        pytest.raises(KeyError, match="TRELLO_API_KEY"),
+    ):
         DefaultIssueTrackerClient()
 
 
@@ -103,7 +116,10 @@ def test_init_raises_when_api_token_missing() -> None:
     """Construction raises KeyError when TRELLO_API_TOKEN is absent."""
     env = {k: v for k, v in os.environ.items() if k != "TRELLO_API_TOKEN"}
     env["TRELLO_API_KEY"] = FAKE_KEY
-    with patch.dict(os.environ, env, clear=True), pytest.raises(KeyError, match="TRELLO_API_TOKEN"):
+    with (
+        patch.dict(os.environ, env, clear=True),
+        pytest.raises(KeyError, match="TRELLO_API_TOKEN"),
+    ):
         DefaultIssueTrackerClient()
 
 
@@ -155,6 +171,7 @@ def test_list_issues_returns_open_issues(
     mock_requests: MagicMock,
 ) -> None:
     """list_issues returns Issue objects with OPEN state parsed from card payloads."""
+    expected_issue_count = 2
     mock_resp = MagicMock()
     mock_resp.raise_for_status.return_value = None
     mock_resp.json.return_value = [
@@ -166,7 +183,7 @@ def test_list_issues_returns_open_issues(
     issues = client.list_issues(BOARD_ID)
 
     assert isinstance(issues, list)
-    assert len(issues) == 2
+    assert len(issues) == expected_issue_count
     assert all(isinstance(i, Issue) for i in issues)
     assert issues[0].title == "Alpha"
     assert issues[0].state == IssueState.OPEN
@@ -185,7 +202,9 @@ def test_get_issue_calls_cards_endpoint(
     """get_issue hits GET /1/cards/{full_card_id} after resolving the short ID."""
     mock_resp = MagicMock()
     mock_resp.raise_for_status.return_value = None
-    mock_resp.json.return_value = _make_card_payload(CARD_SHORT_ID, "Fix login", "details")
+    mock_resp.json.return_value = _make_card_payload(
+        CARD_SHORT_ID, "Fix login", "details"
+    )
     mock_requests.get.return_value = mock_resp
 
     with patch.object(client, "_resolve_card_id", return_value=CARD_FULL_ID):
@@ -203,7 +222,9 @@ def test_get_issue_returns_correct_issue(
     """get_issue maps the Trello card payload to an Issue dataclass."""
     mock_resp = MagicMock()
     mock_resp.raise_for_status.return_value = None
-    mock_resp.json.return_value = _make_card_payload(CARD_SHORT_ID, "Fix login", "login details")
+    mock_resp.json.return_value = _make_card_payload(
+        CARD_SHORT_ID, "Fix login", "login details"
+    )
     mock_requests.get.return_value = mock_resp
 
     with patch.object(client, "_resolve_card_id", return_value=CARD_FULL_ID):
