@@ -67,8 +67,8 @@ ospsd-team-03
 │           └── test_impl.py                
 │
 ├── tests/
-│   ├── integration/                       # Integration tests (verifies DI wiring works correctly)
-│   │   └── test_di_wiring.py
+│   ├── integration/                       # Integration tests (verifies DI wiring and client contract)
+│   │   └── test_client_integration.py
 │   │
 │   └── e2e/                               # End-to-end tests using real Trello credentials
 │       └── test_main_application.py

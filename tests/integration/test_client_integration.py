@@ -1,11 +1,11 @@
-"""Integration tests — verify DI wiring returns the correct concrete type.
+"""Integration tests — verify DI wiring and client contract.
 
-These tests complement test_di_wiring.py by going one step further:
-they call get_client() and verify the returned instance is the expected
-concrete type with the expected interface methods.  No real API calls
-are made; environment variables are stubbed with fake values.
+Tests that importing the implementation registers the factory,
+that get_client() returns the correct concrete type, and that
+the returned instance satisfies the abstract interface.
 """
 
+import sys
 from collections.abc import Generator
 from unittest.mock import patch
 
@@ -25,6 +25,15 @@ def _isolate_registry() -> Generator[None, None, None]:
 
 
 _FAKE_ENV = {"TRELLO_API_KEY": "fake-key", "TRELLO_API_TOKEN": "fake-token"}
+
+
+def test_importing_impl_registers_factory() -> None:
+    """Importing issue_tracker_client_impl registers DefaultIssueTrackerClient."""
+    _api._factories.clear()
+    sys.modules.pop("issue_tracker_client_impl", None)
+    import issue_tracker_client_impl  # noqa: PLC0415, F401
+
+    assert _api._factories[0] is DefaultIssueTrackerClient
 
 
 def test_get_client_returns_concrete_type() -> None:

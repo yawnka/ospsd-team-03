@@ -10,6 +10,7 @@ nav:
   - Components:
       - issue_tracker_client_api: components/issue_tracker_client_api.md
       - issue_tracker_client_impl: components/issue_tracker_client_impl.md
+  - CircleCI Setup: circleci-setup.md
 
 markdown_extensions:
   - toc:
