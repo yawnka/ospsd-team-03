@@ -14,6 +14,7 @@ import pytest
 from issue_tracker_client_api.client import IssueTrackerClient
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
+pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def _isolate_registry() -> Generator[None, None, None]:
@@ -32,7 +33,7 @@ def test_importing_impl_registers_factory() -> None:
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
     import issue_tracker_client_impl  # noqa: PLC0415, F401
-
+    assert _api._factories # Ensure DI factory was registered before indexing
     assert _api._factories[0] is DefaultIssueTrackerClient
 
 

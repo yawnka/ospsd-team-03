@@ -10,7 +10,7 @@ This package serves as the Trello-backed implementation of the Issue Tracker abs
 - **Trello API Integration**: Connects to Trello using official Trello REST APIs
 - **API Key Authentication**: Secure environment-variable based credential handling
 - **ABC Implementation**: Implements all abstract methods from `IssueTrackerClient`
-- **Dependency Injection**: Automatically registers itself as the Client implementation
+- **Dependency Injection**: Automatically registers itself as the Client implementation upon import
 - **Clean Abstraction Boundary**: Trello-specific types never leak into the interface
 
 Users always code against the interface (`issue_tracker_client_api`), not this implementation.
@@ -21,7 +21,7 @@ Users always code against the interface (`issue_tracker_client_api`), not this i
 Importing this package automatically injects the Trello client into the interface factory:
 ```python
 import issue_tracker_client_impl  # triggers DI
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 client = get_client()
 ```
@@ -36,7 +36,7 @@ Client instances are created via:
 
 ```python
 import issue_tracker_client_impl
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 client = get_client() 
 ```
@@ -49,7 +49,15 @@ Trello uses **API key** and **token authentication**.
 ```bash
 export TRELLO_API_KEY="your_api_key"
 export TRELLO_API_TOKEN="your_api_token"
+export TRELLO_BOARD_ID="your_board_id"  # required for E2E tests
 ```
+
+-   `TRELLO_API_KEY` - Trello developer API key
+-   `TRELLO_API_TOKEN` - User access token
+-   `TRELLO_BOARD_ID` - Required for End-to-End (E2E) tests
+
+`TRELLO_BOARD_ID` must be the ID of a Trello board your key/token has
+access to.
 
 The implementation:
 - Reads credentials from environment variables
@@ -79,7 +87,7 @@ The `board` parameter must be the Trello **board ID** (the identifier used in Tr
 ### Basic Retrieval
 ```python
 import issue_tracker_client_impl
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 client = get_client()
 
@@ -92,7 +100,7 @@ for issue in issues:
 ### Creating a Trello Card
 ```python
 import issue_tracker_client_impl
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 client = get_client()
 
@@ -108,7 +116,7 @@ print(new_issue.id)
 ### Add a Comment
 ```python
 import issue_tracker_client_impl
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 client = get_client()
 
@@ -124,7 +132,7 @@ print(new_comment)
 
 ```python
 import issue_tracker_client_impl
-from issue_tracker_client_api import get_client
+from issue_tracker_client_api.client import get_client
 
 try:
     client = get_client()
@@ -146,6 +154,7 @@ except Exception as e:
    ```bash
    export TRELLO_API_KEY="your_api_key"
    export TRELLO_API_TOKEN="your_api_token"
+   export TRELLO_BOARD_ID="your_board_id"
    ```
 
 2. **CI/CD Integration**:
@@ -157,13 +166,19 @@ except Exception as e:
 1. **Environment Variables**
    - `TRELLO_API_KEY`
    - `TRELLO_API_TOKEN`
+   - `TRELLO_BOARD_ID`
 
 2. **Local `.env` File**
     -  Create an `.env` file in the root of this project and define: 
-    ```text
-    TRELLO_API_KEY=your_api_key
-    TRELLO_API_TOKEN=your_api_token
-    ```
+        ```text
+        TRELLO_API_KEY=your_api_key
+        TRELLO_API_TOKEN=your_api_token
+        TRELLO_BOARD_ID=your_board_id
+        ```
+    -  Load the `.env` file:
+        ``` bash
+        set -a && source .env && set +a
+        ```
    
 
 ## Testing
@@ -172,8 +187,18 @@ uv run pytest components/issue_tracker_client_impl/tests/ -q
 uv run pytest components/issue_tracker_client_impl/tests/ --cov=components/issue_tracker_client_impl/src/issue_tracker_client_impl --cov-report=term-missing
 ```
 
-- Unit tests rely on mocks—no real Trello API calls.
-- Integration and e2e suites in `tests/` expect credentials or environment variables.
+#### Unit tests 
+- Uses mocks
+- No real Trello API calls
+- Fast and deterministic
+
+#### Integration and E2E tests 
+E2E tests require:
+- `TRELLO_API_KEY`
+- `TRELLO_API_TOKEN`
+- `TRELLO_BOARD_ID`
+
+If credentials are missing, tests fail fast or skip appropriately
 
 ## Trello API Integration
 

@@ -1,7 +1,7 @@
 # Python Application: A Component-Based Issue Tracker Client
 
 [![CircleCI](https://circleci.com/gh/yawnka/ospsd-team-03.svg?style=shield)](https://circleci.com/gh/yawnka/ospsd-team-03)
-[![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/ivanearisty/oss-taapp)
+[![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/yawnka/ospsd-team-03)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
@@ -29,8 +29,8 @@ This project is built on the principle of "programming integrated over time." Th
 
 The project is a `uv` workspace containing two primary packages:
 
-1.  **`issue_tracker_client_api`**: Defines the abstract `Client` base class (ABC). This is the contract for what actions an issue tracker client can perform (e.g., `list_issues`, `get_issue`, etc.).
-4.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API to perform the actions defined in the `Client` abstraction 
+1.  **`issue_tracker_client_api`**: Defines the abstract `IssueTrackerClient` base class (ABC). This is the contract for what actions an issue tracker client can perform (e.g., `list_issues`, `get_issue`, etc.).
+2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API to perform the actions defined in the `Client` abstraction 
 
 
 ## Project Structure
@@ -109,15 +109,27 @@ ospsd-team-03
     ```
 
 3.  **Set Up Trello Credentials:**
-    -   Follow the [Atlassian instructions](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/) to API Key and Token.
-    -   Create an `.env` file in the root of this project and set `TRELLO_API_KEY="your_api_key"`
-    `TRELLO_API_TOKEN="your_api_token"` .
-    -   **Alternative**: For CI/CD environments, you can use environment variables instead:
+    -  Follow the [Atlassian instructions](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/) to API Key and Token.
+    - Create an `.env` file in the root of this project:
+        `TRELLO_API_KEY="your_api_key"`
+        `TRELLO_API_TOKEN="your_api_token"` 
+        `TRELLO_BOARD_ID="your_board_id"`
+
+    - Load the `.env` file:
+        ``` bash
+        set -a && source .env && set +a
+        ```
+    -   **Alternative**: Export manually:
         ```bash
         export TRELLO_API_KEY="your_api_key"
         export TRELLO_API_TOKEN="your_api_token"
+        export TRELLO_BOARD_ID="your_board_id"
         ```
-    -   **Important:** Credential files contain secrets and are ignored by `.gitignore`.
+    - **CI/CD**: Configure TRELLO_API_KEY and TRELLO_API_TOKEN in CircleCI project settings.
+    - **Important:** 
+        - `TRELLO_BOARD_ID` is required for End-to-End (E2E) tests. This should be the ID of a Trello board that your API key/token has access to.
+        - Credential and `.env` files may contain secrets and are ignored by `.gitignore`.
+        
 
 4.  **Create and Sync the Virtual Environment:**
     This command creates a `.venv` folder and installs all packages (including workspace members and development tools) defined in `uv.lock`.
@@ -136,9 +148,6 @@ ospsd-team-03
 ## Development Workflow
 
 All commands should be run from the project root with the virtual environment activated.
-
-### Running the Application
-
 
 ### Running the Toolchain
 
@@ -215,9 +224,10 @@ The project uses pytest markers to categorize tests:
 ### Authentication in Tests
 
 The testing infrastructure handles different authentication scenarios:
-- **Local Development**:  Requires `TRELLO_API_KEY` and `TRELLO_API_TOKEN` set via environment variables or a `.env` file
+- **Local Development**:  Requires `TRELLO_API_KEY`, `TRELLO_API_TOKEN` and `TRELLO_BOARD_ID` set via environment variables or in a `.env` file
 - **CI/CD Environment**: Set environment variables (`TRELLO_API_KEY`, `TRELLO_API_TOKEN`) in CircleCI project settings
 - **Missing Credentials**: Tests fail fast with clear error messages (no hanging)
+- - If `TRELLO_BOARD_ID` is not set, some E2E tests will be skipped.
 
 ## Continuous Integration
 

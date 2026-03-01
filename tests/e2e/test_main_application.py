@@ -147,34 +147,43 @@ def test_full_workflow_against_real_trello() -> None:
     """Full E2E workflow: client creation → API call → response handling."""
     api_key = os.environ.get("TRELLO_API_KEY")
     api_token = os.environ.get("TRELLO_API_TOKEN")
+    board_id = os.environ.get("TRELLO_BOARD_ID")
 
-    if not api_key or not api_token:
-        pytest.skip("TRELLO_API_KEY / TRELLO_API_TOKEN not set — skipping live E2E test")
+    missing = [
+        name
+        for name, value in {
+            "TRELLO_API_KEY": api_key,
+            "TRELLO_API_TOKEN": api_token,
+            "TRELLO_BOARD_ID": board_id,
+        }.items()
+        if not value
+    ]
+    if missing:
+        pytest.skip(f"Missing env var(s): {', '.join(missing)} — "
+                    "skipping live E2E test")
 
     import issue_tracker_client_impl  # noqa: PLC0415, F401
 
     client = _api.get_client()
     assert isinstance(client, DefaultIssueTrackerClient)
 
-    board_id = "yTl6GOUh"
-
-    # 1. list_issues — 보드에서 카드 목록 가져오기
+    # 1. list_issues
     issues = client.list_issues(board_id)
     assert isinstance(issues, list)
 
-    # 2. create_issue — 새 카드 생성
+    # 2. create_issue
     new_issue = client.create_issue(board_id, "E2E Test Card", "Created by E2E test")
     assert new_issue.title == "E2E Test Card"
 
-    # 3. get_issue — 생성한 카드 가져오기
+    # 3. get_issue
     fetched = client.get_issue(board_id, new_issue.id)
     assert fetched.id == new_issue.id
     assert fetched.title == "E2E Test Card"
 
-    # 4. add_comment — 댓글 추가
+    # 4. add_comment
     comment = client.add_comment(board_id, new_issue.id, "E2E comment")
     assert comment.body == "E2E comment"
 
-    # 5. close_issue — 카드 닫기
+    # 5. close_issue
     result = client.close_issue(board_id, new_issue.id)
     assert result is True

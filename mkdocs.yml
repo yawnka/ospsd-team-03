@@ -1,17 +1,46 @@
-site_name: ospsd-team-03
+site_name: Issue Tracker Client Project
 repo_name: ospsd-team-03
 repo_url: https://github.com/yawnka/ospsd-team-03
 
 theme:
   name: material
+  palette:
+    # Light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - content.code.copy
 
 nav:
-  - Home: index.md
+  - 'Overview': 'index.md'
   - Components:
-      - issue_tracker_client_api: components/issue_tracker_client_api.md
-      - issue_tracker_client_impl: components/issue_tracker_client_impl.md
+      - Issue Tracker Client API: components/issue_tracker_client_api.md
+      - Issue Tracker Client Implementation: components/issue_tracker_client_impl.md
   - CircleCI Setup: circleci-setup.md
+  - Component: component.md
+  - Testing: testing.md
 
 markdown_extensions:
-  - toc:
-      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - components/issue_tracker_client_api/src
+            - components/issue_tracker_client_impl/src
+          options:
+            show_source: false
+            docstring_section_style: spacy
+            members_order: source

@@ -1,6 +1,6 @@
 # ── Workspace ────────────────────────────────────────────────────────────────
 [tool.uv.workspace]
-members = ["components/*", "src/*"]
+members = ["components/*"]
 
 # ── Dev dependencies (PEP 735 dependency groups) ──────────────────────────────
 [dependency-groups]
@@ -11,11 +11,13 @@ dev = [
     "ruff>=0.9",
     "mkdocs>=1.6",
     "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=1.0.3",
+    "mkdocstrings-python>=1.0.0",
 ]
 
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
-src = ["components", "src"]
+src = ["components"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -60,13 +62,15 @@ exclude = [
 testpaths = ["tests", "components"]
 addopts = ["--cov", "--cov-report=term-missing"]
 markers = [
+    "unit: marks tests as unit tests (fast, isolated)",
+    "integration: marks tests as integration tests (medium speed, real dependencies)",
     "e2e: marks tests as end-to-end tests (slow, full system)",
     "local_credentials: marks tests that require real API credentials (skipped in CI)",
 ]
 
 # ── Coverage ─────────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source = ["components", "src"]
+source = ["components"]
 branch = true
 
 [tool.coverage.report]

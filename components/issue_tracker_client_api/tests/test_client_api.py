@@ -12,7 +12,7 @@ from issue_tracker_client_api.client import (
     register,
 )
 
-
+pytestmark = pytest.mark.unit
 class _MockClient(IssueTrackerClient):
     def list_issues(self, _board: str) -> list[Issue]:
         return []
