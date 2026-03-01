@@ -20,6 +20,8 @@ import pytest
 from issue_tracker_client_api.client import Comment, Issue, IssueState
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
+pytestmark = pytest.mark.unit
+
 FAKE_KEY = "fake-trello-api-key"
 FAKE_TOKEN = "fake-trello-api-token" # noqa: S105
 BOARD_ID = "board-abc123"

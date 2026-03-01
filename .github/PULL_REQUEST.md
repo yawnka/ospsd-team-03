@@ -118,3 +118,53 @@ uv run mkdocs build
 ```
 
 All commands complete successfully.
+
+
+
+
+# AFTER FIRST DRAFT
+## READMEs
+- Cleaned up and clarified project documentation
+- Improved README structure and formatting (root + component READMEs)
+- Clarified dependency injection and client construction workflow
+- Documented Trello authentication expectations
+- Standardized testing and coverage command examples
+- Minor spec/document consistency fixes
+
+## Testing Improvements
+- Aligned pytest markers across the codebase (unit, integration)
+- Registered custom markers in pyproject.toml for marker validation
+- Added assertion to ensure DI registry is populated before accessing factory
+- Removed hardcoded Trello board ID in E2E tests
+- E2E tests now rely on TRELLO_BOARD_ID environment variable
+
+## Documentation Enhancements (MkDocs)
+- Restructured docs/ to reflect component-based architecture
+- Updated index.md with:
+    -Project overview
+    -Workspace structure
+    -Navigation guidance
+- Added structured components.md documenting:
+    Interface vs implementation separation
+    Dependency Injection design
+    Workspace layout
+- Added testing.md:
+  - Marker strategy
+  - Unit vs integration vs E2E breakdown
+  - CI behavior
+- Updated API and implementation documentation pages
+- Standardized formatting and improved Markdown consistency
+- Ensured documentation builds cleanly without warnings
+
+## MkDocs Configuration Fixes
+- Added mkdocstrings[python] to dev dependency group
+- Synced uv workspace to install updated dev dependencies
+- Fixed mkdocs.yml handler configuration for mkdocstrings
+- Cleaned module directives to ensure proper rendering
+
+## Ruff docstring violations and rule conflicts fixes
+- Replace @pytest.fixture() with @pytest.fixture
+- Fix D205 and D210 docstring formatting issues
+- Remove magic number (PLR2004) in test assertion
+- Ignore D203 and D213 to prevent D203/D211 and D212/D213 conflicts
+
