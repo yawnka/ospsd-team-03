@@ -1,7 +1,5 @@
 """Default implementation of IssueTrackerClient."""
 
-import os
-
 import requests
 from issue_tracker_client_api.client import (
     Comment,
@@ -16,10 +14,10 @@ BASE_URL = "https://api.trello.com/1"
 class DefaultIssueTrackerClient(IssueTrackerClient):
     """Default concrete implementation of IssueTrackerClient."""
 
-    def __init__(self) -> None:
-        """Initialize Trello client with credentials from environment variables."""
-        self._api_key: str = os.environ["TRELLO_API_KEY"]
-        self._api_token: str = os.environ["TRELLO_API_TOKEN"]
+    def __init__(self, api_key: str, token: str) -> None:
+        """Initialize api_key and token."""
+        self._api_key = api_key
+        self._api_token = token
 
     def _auth_params(self) -> dict[str, str]:
         """Return the key/token query params needed for every Trello call."""
