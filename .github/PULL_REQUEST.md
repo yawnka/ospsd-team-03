@@ -1,170 +1,46 @@
-## Summary
+## Summary                                                                             
+                                                                                       
+  Implement Google OAuth 2.0 Authorization Code Flow and refactor the Trello client      
+  constructor to accept credentials as parameters instead of reading from environment    
+  variables.                                                                             
+                                                                                         
+  ## Changes
 
-This PR completes the HW1 first-draft. We will be working on an issue tracker client based on Trello using uv.
+  - Refactored `DefaultIssueTrackerClient` constructor to accept `api_key` and `token` as
+   parameters
+  - Updated DI factory registration to use a lambda that reads env vars
+  - Added `oauth.py` module with Google OAuth 2.0 helpers: `build_authorization_url`,
+  `exchange_code_for_token`, `refresh_access_token`
+  - Updated all existing unit tests for new constructor signature
+  - Added comprehensive unit tests for OAuth helper functions
 
-Additions/Changes Made:
-- Abstract API package  
-- Default implementation package  
-- Dependency injection wiring  
-- Repository restructure under `components/`  
-- CircleCI CI/CD configuration  
-- Integration and E2E tests  
-- MkDocs documentation  
+  ## Files Modified
 
-All checks pass locally and in CircleCI.
+  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/client.py` —
+  constructor now takes `api_key` and `token` params
+  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/__init__.py` — DI
+   registration uses lambda with env vars
+  - `components/issue_tracker_client_impl/src/issue_tracker_client_impl/oauth.py` —
+  **new** Google OAuth 2.0 helper functions
+  - `components/issue_tracker_client_impl/tests/test_impl.py` — updated fixtures and init
+   tests
+  - `components/issue_tracker_client_impl/tests/test_oauth.py` — **new** OAuth unit tests
 
----
+  ## Testing
 
-## Architecture
+  - [ ] All unit tests pass (`pytest components/ -v`)
+  - [ ] Ruff passes (`ruff check .`)
+  - [ ] MyPy passes (`mypy -p issue_tracker_client_api -p issue_tracker_client_impl
+  --explicit-package-bases`)
+  - [ ] Coverage meets 85% threshold
 
-The project is structured as two installable workspace packages:
+  ## Notes for Reviewers
 
-- `issue_tracker_client_api`
-  - Defines the abstract interface  
-  - Provides data models  
-  - Implements dependency injection registry  
-
-- `issue_tracker_client_impl`
-  - Implements the interface (stubbed for draft)  
-  - Auto-registers itself on import  
-
-Both packages use the layout:
-
-```
-components/<package>/src/<package>/
-```
-
----
-
-## Dependency Injection
-
-- The API package defines:
-  - `register(factory)`
-  - `get_client()`
-
-- The implementation registers `DefaultIssueTrackerClient` in `__init__.py`.
-
-- Importing `issue_tracker_client_impl` activates the implementation.
-
-Callers only depend on the API package:
-
-```python
-import issue_tracker_client_api.client as api
-import issue_tracker_client_impl
-
-client = api.get_client()
-```
-
----
-
-## Testing
-
-- Unit tests validate DI behavior.  
-- Integration test verifies implementation auto-registration.  
-- E2E tests validate:
-  - Required repository structure (`components/`)
-  - Python syntax validity of source files
-  - Import behavior in a subprocess
-  - Token-required behavior for client instantiation
-
-Coverage is approximately 85% and enforced in CI.
-
----
-
-## CI/CD
-
-`.circleci/config.yml` includes:
-
-- Build step using `uv sync`
-- Linting with `ruff`
-- Static analysis with `mypy --strict`
-- Test execution with coverage threshold
-- Coverage report artifact generation
-
-All pipeline jobs pass.
-
----
-
-## Documentation
-
-Added MkDocs setup:
-
-- `docs/` directory
-- `mkdocs.yml`
-- Component documentation pages:
-  - `docs/components/issue_tracker_client_api.md`
-  - `docs/components/issue_tracker_client_impl.md`
-- Updated root `README.md` with:
-  - Project structure
-  - Features section
-  - Setup instructions
-
-Documentation builds successfully using:
-
-```bash
-uv run mkdocs build
-```
-
----
-
-## Local Verification
-
-```bash
-uv sync --all-packages --group dev
-uv run ruff check .
-uv run mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
-uv run pytest
-uv run mkdocs build
-```
-
-All commands complete successfully.
-
-
-
-
-# AFTER FIRST DRAFT
-## READMEs
-- Cleaned up and clarified project documentation
-- Improved README structure and formatting (root + component READMEs)
-- Clarified dependency injection and client construction workflow
-- Documented Trello authentication expectations
-- Standardized testing and coverage command examples
-- Minor spec/document consistency fixes
-
-## Testing Improvements
-- Aligned pytest markers across the codebase (unit, integration)
-- Registered custom markers in pyproject.toml for marker validation
-- Added assertion to ensure DI registry is populated before accessing factory
-- Removed hardcoded Trello board ID in E2E tests
-- E2E tests now rely on TRELLO_BOARD_ID environment variable
-
-## Documentation Enhancements (MkDocs)
-- Restructured docs/ to reflect component-based architecture
-- Updated index.md with:
-    -Project overview
-    -Workspace structure
-    -Navigation guidance
-- Added structured components.md documenting:
-    Interface vs implementation separation
-    Dependency Injection design
-    Workspace layout
-- Added testing.md:
-  - Marker strategy
-  - Unit vs integration vs E2E breakdown
-  - CI behavior
-- Updated API and implementation documentation pages
-- Standardized formatting and improved Markdown consistency
-- Ensured documentation builds cleanly without warnings
-
-## MkDocs Configuration Fixes
-- Added mkdocstrings[python] to dev dependency group
-- Synced uv workspace to install updated dev dependencies
-- Fixed mkdocs.yml handler configuration for mkdocstrings
-- Cleaned module directives to ensure proper rendering
-
-## Ruff docstring violations and rule conflicts fixes
-- Replace @pytest.fixture() with @pytest.fixture
-- Fix D205 and D210 docstring formatting issues
-- Remove magic number (PLR2004) in test assertion
-- Ignore D203 and D213 to prevent D203/D211 and D212/D213 conflicts
-
+  - OAuth provider is Google (Internal NYU users only)
+  - The FastAPI service (Task 2) should import from `oauth.py` for auth endpoints
+  - The FastAPI service should construct the client per-request:
+  `DefaultIssueTrackerClient(api_key=os.environ["TRELLO_API_KEY"], token=session_token)`
+  - New env vars required: `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `REDIRECT_URI` —
+  shared privately, never committed
+  - Once a production URL is available, it must be added as a redirect URI in the Google
+  Cloud Console

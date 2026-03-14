@@ -13,7 +13,6 @@ Authentication: every request carries key=TRELLO_API_KEY and
 token=TRELLO_API_TOKEN in query params.
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,11 +62,8 @@ def _make_comment_payload(text: str = "A comment") -> dict:
 
 @pytest.fixture
 def client() -> DefaultIssueTrackerClient:
-    """Return a DefaultIssueTrackerClient with both Trello credentials injected."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        return DefaultIssueTrackerClient()
+    """Return a DefaultIssueTrackerClient with test credentials."""
+    return DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
 
 
 @pytest.fixture
@@ -83,46 +79,27 @@ def mock_requests() -> MagicMock:
 
 
 def test_init_stores_api_key() -> None:
-    """TRELLO_API_KEY is stored as _api_key after construction."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        c = DefaultIssueTrackerClient()
-    assert c._api_key == FAKE_KEY
+      """api_key is stored as _api_key after construction."""
+      c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
+      assert c._api_key == FAKE_KEY
 
 
 def test_init_stores_api_token() -> None:
-    """TRELLO_API_TOKEN is stored as _api_token after construction."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        c = DefaultIssueTrackerClient()
+    """Token is stored as _api_token after construction."""
+    c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
     assert c._api_token == FAKE_TOKEN
 
 
 def test_init_raises_when_api_key_missing() -> None:
-    """Construction raises KeyError when TRELLO_API_KEY is absent."""
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k not in {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
-    }
-    with (
-        patch.dict(os.environ, env, clear=True),
-        pytest.raises(KeyError, match="TRELLO_API_KEY"),
-    ):
-        DefaultIssueTrackerClient()
+    """Construction raises TypeError when api_key is not provided."""
+    with pytest.raises(TypeError):
+        DefaultIssueTrackerClient(token=FAKE_TOKEN)  # type: ignore[call-arg]
 
 
-def test_init_raises_when_api_token_missing() -> None:
-    """Construction raises KeyError when TRELLO_API_TOKEN is absent."""
-    env = {k: v for k, v in os.environ.items() if k != "TRELLO_API_TOKEN"}
-    env["TRELLO_API_KEY"] = FAKE_KEY
-    with (
-        patch.dict(os.environ, env, clear=True),
-        pytest.raises(KeyError, match="TRELLO_API_TOKEN"),
-    ):
-        DefaultIssueTrackerClient()
+def test_init_raises_when_token_missing() -> None:
+    """Construction raises TypeError when token is not provided."""
+    with pytest.raises(TypeError):
+        DefaultIssueTrackerClient(api_key=FAKE_KEY)  # type: ignore[call-arg]
 
 
 # ---------------------------------------------------------------------------
