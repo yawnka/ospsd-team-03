@@ -29,12 +29,16 @@ _FAKE_ENV = {"TRELLO_API_KEY": "fake-key", "TRELLO_API_TOKEN": "fake-token"}
 
 
 def test_importing_impl_registers_factory() -> None:
-    """Importing issue_tracker_client_impl registers DefaultIssueTrackerClient."""
+    """Importing issue_tracker_client_impl registers a usable factory."""
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
     import issue_tracker_client_impl  # noqa: PLC0415, F401
     assert _api._factories # Ensure DI factory was registered before indexing
-    assert _api._factories[0] is DefaultIssueTrackerClient
+    factory = _api._factories[0]
+    with patch.dict("os.environ", _FAKE_ENV):
+        client = factory()
+
+    assert isinstance(client, DefaultIssueTrackerClient)
 
 
 def test_get_client_returns_concrete_type() -> None:
