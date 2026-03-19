@@ -72,6 +72,7 @@ markers = [
 [tool.coverage.run]
 source = ["components"]
 branch = true
+omit = ["components/issue_tracker_client_service_client/*"]
 
 [tool.coverage.report]
 show_missing = true
