@@ -42,3 +42,4 @@ class AuthStatusOut(BaseModel):
     """Represent a successful auth response."""
 
     status: str
+    session_id: str | None = None

@@ -134,7 +134,6 @@ def test_client_raises_without_token() -> None:
     skip = {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
     env = {k: v for k, v in os.environ.items() if k not in skip}
 
-
     with patch.dict("os.environ", env, clear=True):
         import issue_tracker_client_impl  # noqa: PLC0415, F401
 
@@ -159,8 +158,9 @@ def test_full_workflow_against_real_trello() -> None:
         if not value
     ]
     if missing:
-        pytest.skip(f"Missing env var(s): {', '.join(missing)} — "
-                    "skipping live E2E test")
+        pytest.skip(
+            f"Missing env var(s): {', '.join(missing)} — skipping live E2E test"
+        )
 
     import issue_tracker_client_impl  # noqa: PLC0415, F401
 

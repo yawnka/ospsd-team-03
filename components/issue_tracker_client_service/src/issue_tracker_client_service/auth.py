@@ -1,6 +1,5 @@
 """Helpers for service-side OAuth state and session handling."""
 
-
 import secrets
 
 from fastapi import HTTPException
@@ -22,4 +21,3 @@ def consume_state(state: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
     _STATE_STORE.remove(state)
-

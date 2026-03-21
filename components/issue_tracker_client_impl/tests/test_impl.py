@@ -22,7 +22,7 @@ from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 pytestmark = pytest.mark.unit
 
 FAKE_KEY = "fake-trello-api-key"
-FAKE_TOKEN = "fake-trello-api-token" # noqa: S105
+FAKE_TOKEN = "fake-trello-api-token"  # noqa: S105
 BOARD_ID = "board-abc123"
 CARD_SHORT_ID = 42
 CARD_FULL_ID = "abcdef1234567890abcdef12"
@@ -79,9 +79,9 @@ def mock_requests() -> MagicMock:
 
 
 def test_init_stores_api_key() -> None:
-      """api_key is stored as _api_key after construction."""
-      c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
-      assert c._api_key == FAKE_KEY
+    """api_key is stored as _api_key after construction."""
+    c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
+    assert c._api_key == FAKE_KEY
 
 
 def test_init_stores_api_token() -> None:

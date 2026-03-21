@@ -2,19 +2,14 @@
 
 import os
 import secrets
-import time
 from typing import Annotated
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from issue_tracker_client_api.client import Issue
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
-from issue_tracker_client_impl.oauth import (
-    build_authorization_url,
-    exchange_code_for_token,
-    refresh_access_token,
-)
-
+from issue_tracker_client_impl.oauth import build_authorization_url
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AddCommentIn,
@@ -30,6 +25,14 @@ app = FastAPI(
     title="Issue Tracker Client Service",
     version="0.1.0",
     description="FastAPI service exposing the issue tracker client implementation.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -51,32 +54,11 @@ def get_client(
 
     if session_id is not None:
         session = get_session(session_id)
-        # check expiration
-        if (session is not None and
-        time.time() > session.expires_at and
-        session.refresh_token is not None
-        ):
-            new_tokens = refresh_access_token(session.refresh_token)
-            new_access_token = str(new_tokens["access_token"])
-            expires_in = int(new_tokens.get("expires_in", 3600))
-            new_expires_at = time.time() + expires_in
-
-            # update session
-            save_session(
-                session_id,
-                new_access_token,
-                session.refresh_token,
-                new_expires_at,
-            )
-
+        if session is not None:
             return DefaultIssueTrackerClient(
                 api_key=api_key,
-                token=new_access_token,
+                token=session.access_token,
             )
-        return DefaultIssueTrackerClient(
-            api_key=api_key,
-            token=session.access_token,
-        )
 
     token = os.environ["TRELLO_API_TOKEN"]
     return DefaultIssueTrackerClient(api_key=api_key, token=token)
@@ -99,7 +81,7 @@ def health() -> HealthOut:
 
 @app.get("/auth/login")
 def auth_login() -> RedirectResponse:
-    """Start the OAuth authorization flow."""
+    """Start the Trello authorization flow."""
     try:
         state = create_state()
         auth_url = build_authorization_url(state)
@@ -109,52 +91,72 @@ def auth_login() -> RedirectResponse:
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail="Failed to start OAuth authorization flow",
+            detail="Failed to start authorization flow",
         ) from exc
+
 
 @app.get("/auth/callback")
 def auth_callback(
-    response: Response,
-    code: str | None = None,
     state: str | None = None,
     error: str | None = None,
-) -> AuthStatusOut:
-    """Handle the OAuth callback."""
+) -> HTMLResponse:
+    """Serve an HTML page that extracts the Trello token from the URL fragment.
+
+    Trello redirects to ``return_url#token=<value>``. Since the fragment is
+    not sent to the server, this endpoint returns a small HTML/JS page that
+    reads ``window.location.hash``, extracts the token, and POSTs it to
+    ``/auth/token``.
+    """
     if error is not None:
         raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
 
-    if code is None or state is None:
-        raise HTTPException(status_code=400, detail="Missing code or state")
+    if state is None:
+        raise HTTPException(status_code=400, detail="Missing state parameter")
 
     consume_state(state)
 
-    try:
-        token_payload = exchange_code_for_token(code)
-    except KeyError:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to exchange OAuth code for tokens",
-        ) from exc
-    access_token = str(token_payload["access_token"])
-    refresh_token_raw = token_payload.get("refresh_token")
-    refresh_token = None if refresh_token_raw is None else str(refresh_token_raw)
-    expires_in = int(token_payload.get("expires_in", 3600)) # token has lifetime of 1 hr
-    expires_at = time.time() + expires_in
+    # Return HTML that extracts the token from the fragment and POSTs it
+    html = f"""<!DOCTYPE html>
+<html>
+<head><title>Authenticating...</title></head>
+<body>
+<p>Completing authentication...</p>
+<script>
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const token = params.get("token");
+    if (token) {{
+        fetch("/auth/token", {{
+            method: "POST",
+            headers: {{"Content-Type": "application/json"}},
+            body: JSON.stringify({{token: token, state: "{state}"}})
+        }}).then(resp => resp.json()).then(data => {{
+            document.body.innerHTML = "<p>Authenticated!</p>";
+        }}).catch(err => {{
+            document.body.innerHTML = "<p>Error: " + err + "</p>";
+        }});
+    }} else {{
+        document.body.innerHTML = "<p>Error: No token received from Trello.</p>";
+    }}
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
+@app.post("/auth/token")
+def auth_token(
+    request_body: dict[str, str],
+) -> AuthStatusOut:
+    """Receive the Trello token from the client-side callback page."""
+    token = request_body.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing token")
 
     session_id = secrets.token_urlsafe(32)
-    save_session(session_id, access_token, refresh_token, expires_at)
+    save_session(session_id, access_token=token, refresh_token=None, expires_at=None)
 
-    response.set_cookie(
-        key="session_id",
-        value=session_id,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-    )
-
-    return AuthStatusOut(status="authenticated")
+    return AuthStatusOut(status="authenticated", session_id=session_id)
 
 
 @app.get("/boards/{board}/issues")
@@ -213,6 +215,7 @@ def create_issue(
     else:
         return _issue_to_out(issue)
 
+
 @app.post("/boards/{board}/issues/{issue_id}/close")
 def close_issue(
     board: str,
@@ -231,6 +234,7 @@ def close_issue(
         ) from exc
     else:
         return {"success": success}
+
 
 @app.post("/boards/{board}/issues/{issue_id}/comments")
 def add_comment(
@@ -251,6 +255,7 @@ def add_comment(
         ) from exc
     else:
         return CommentOut(id=comment.id, body=comment.body)
+
 
 @app.exception_handler(KeyError)
 def handle_missing_env(_: Request, exc: KeyError) -> JSONResponse:
