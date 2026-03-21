@@ -71,3 +71,28 @@ def test_build_authorization_url_sets_30day_expiration() -> None:
     with patch.dict("os.environ", OAUTH_ENV):
         url = build_authorization_url(state="abc123")
     assert "expiration=30days" in url
+
+
+def test_build_authorization_url_includes_app_name() -> None:
+    """Returned URL includes the application name."""
+    with patch.dict("os.environ", OAUTH_ENV):
+        url = build_authorization_url(state="abc123")
+    assert "name=" in url
+
+
+def test_build_authorization_url_missing_api_key_raises() -> None:
+    """Missing TRELLO_API_KEY raises KeyError."""
+    with (
+        patch.dict("os.environ", {"REDIRECT_URI": FAKE_REDIRECT_URI}, clear=True),
+        pytest.raises(KeyError, match="TRELLO_API_KEY"),
+    ):
+        build_authorization_url(state="abc123")
+
+
+def test_build_authorization_url_missing_redirect_uri_raises() -> None:
+    """Missing REDIRECT_URI raises KeyError."""
+    with (
+        patch.dict("os.environ", {"TRELLO_API_KEY": FAKE_API_KEY}, clear=True),
+        pytest.raises(KeyError, match="REDIRECT_URI"),
+    ):
+        build_authorization_url(state="abc123")
