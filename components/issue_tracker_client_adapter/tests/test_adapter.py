@@ -33,12 +33,21 @@ def test_import_registers_factory(monkeypatch: pytest.MonkeyPatch) -> None:
 
     import issue_tracker_client_api.client as _api  # noqa: PLC0415
 
-    import issue_tracker_client_adapter  # noqa: F401, PLC0415
+    # Clear existing factories so the adapter is the only one registered
+    saved = list(_api._factories)
+    _api._factories.clear()
+
+    import importlib  # noqa: PLC0415
+
+    import issue_tracker_client_adapter  # noqa: PLC0415
+
+    importlib.reload(issue_tracker_client_adapter)
 
     assert isinstance(get_client(), ServiceClientAdapter)
 
-    # Clean up so other tests are not affected
+    # Restore original factories so other tests are not affected
     _api._factories.clear()
+    _api._factories.extend(saved)
 
 
 # ---------------------------------------------------------------------------
