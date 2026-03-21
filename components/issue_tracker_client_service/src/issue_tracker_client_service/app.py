@@ -5,6 +5,7 @@ import secrets
 from typing import Annotated
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from issue_tracker_client_api.client import Issue
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
@@ -25,6 +26,14 @@ app = FastAPI(
     title="Issue Tracker Client Service",
     version="0.1.0",
     description="FastAPI service exposing the issue tracker client implementation.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
