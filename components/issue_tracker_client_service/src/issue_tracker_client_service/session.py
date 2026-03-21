@@ -9,7 +9,7 @@ class UserSession:
 
     access_token: str
     refresh_token: str | None = None
-    expires_at: float  | None = None
+    expires_at: float | None = None
 
 
 _SESSIONS: dict[str, UserSession] = {}
@@ -19,7 +19,7 @@ def save_session(
     session_id: str,
     access_token: str,
     refresh_token: str | None,
-    expires_at: float  | None,
+    expires_at: float | None,
 ) -> None:
     """Persist a user session in memory."""
     _SESSIONS[session_id] = UserSession(
