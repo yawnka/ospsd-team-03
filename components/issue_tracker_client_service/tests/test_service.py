@@ -1,6 +1,5 @@
 """Unit tests for the issue tracker client service."""
 
-import time
 from dataclasses import dataclass
 from enum import Enum
 from unittest.mock import patch
@@ -18,22 +17,19 @@ pytestmark = pytest.mark.unit
 
 HTTP_OK = 200
 HTTP_FOUND = 302
+HTTP_BAD_REQUEST = 400
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 EXPECTED_ISSUE_COUNT = 2
-EXPECTED_ACCESS_TOKEN = "test-access-token"  # noqa: S105 — test constant
-EXPECTED_REFRESH_TOKEN = "test-refresh-token"  # noqa: S105 — test constant
-OLD_ACCESS_TOKEN = "old-access-token"  # noqa: S105 - test constant
-NEW_ACCESS_TOKEN = "new-access-token"  # noqa: S105 - test constant
-TEST_REFRESH_TOKEN = "test-refresh-token"  # noqa: S105 - test constant
 
 # Create a TestClient instance for making requests
 client = TestClient(app)
 
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Health
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 def test_health() -> None:
     """Health endpoint returns OK."""
@@ -43,9 +39,10 @@ def test_health() -> None:
     assert response.json() == {"status": "ok"}
 
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Auth
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 def test_create_and_consume_state() -> None:
     """Create and consume a valid OAuth state."""
@@ -60,51 +57,62 @@ def test_consume_invalid_state_raises() -> None:
 
 
 def test_auth_login_redirects() -> None:
-    """Login endpoint redirects to auth provider."""
+    """Login endpoint redirects to Trello auth."""
     with patch.object(
         app_module,
         "build_authorization_url",
-        return_value="https://example.com/auth?state=abc",
+        return_value="https://trello.com/1/authorize?key=abc",
     ):
         response = client.get("/auth/login", follow_redirects=False)
 
     assert response.status_code == HTTP_FOUND
-    assert "https://example.com/auth" in response.headers["location"]
+    assert "trello.com" in response.headers["location"]
 
 
-def test_auth_callback_sets_session_cookie() -> None:
-    """Callback exchanges code and sets session cookie."""
+def test_auth_callback_returns_html() -> None:
+    """Callback returns HTML page for token extraction."""
     state = create_state()
-
-    with patch.object(
-        app_module,
-        "exchange_code_for_token",
-        return_value={
-            "access_token": EXPECTED_ACCESS_TOKEN,
-            "refresh_token": EXPECTED_REFRESH_TOKEN,
-        },
-    ):
-        response = client.get(
-            "/auth/callback",
-            params={"code": "abc", "state": state},
-        )
-
+    response = client.get(
+        "/auth/callback",
+        params={"state": state},
+    )
     assert response.status_code == HTTP_OK
-    assert response.json() == {"status": "authenticated"}
+    assert "text/html" in response.headers["content-type"]
+    assert "token" in response.text
 
-    session_id = response.cookies.get("session_id")
-    assert session_id is not None
 
-    session = get_session(session_id)
+def test_auth_callback_missing_state_returns_400() -> None:
+    """Callback without state returns 400."""
+    response = client.get("/auth/callback")
+    assert response.status_code == HTTP_BAD_REQUEST
+
+
+def test_auth_token_saves_session() -> None:
+    """Token endpoint saves session and returns session_id."""
+    response = client.post(
+        "/auth/token",
+        json={"token": "trello-user-token"},
+    )
+    assert response.status_code == HTTP_OK
+    data = response.json()
+    assert data["status"] == "authenticated"
+    assert data["session_id"] is not None
+
+    session = get_session(data["session_id"])
     assert session is not None
-    assert session.access_token == EXPECTED_ACCESS_TOKEN
-    assert session.refresh_token == EXPECTED_REFRESH_TOKEN
-    assert session.expires_at is not None
+    assert session.access_token == "trello-user-token"  # noqa: S105 — test credential
 
 
-# -----------------------------------------------------------------------------
+def test_auth_token_missing_token_returns_400() -> None:
+    """Token endpoint without token returns 400."""
+    response = client.post("/auth/token", json={})
+    assert response.status_code == HTTP_BAD_REQUEST
+
+
+# ---------------------------------------------------------------------------
 # Fake client
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 class FakeIssueState(Enum):
     """Fake issue states."""
@@ -135,27 +143,33 @@ class FakeClient:
     """Fake client for endpoint tests."""
 
     def list_issues(self, _board: str) -> list[FakeIssue]:
+        """Return fake issues."""
         return [
             FakeIssue(1, "Issue 1", "Body 1", FakeIssueState.OPEN),
             FakeIssue(2, "Issue 2", "Body 2", FakeIssueState.CLOSED),
         ]
 
     def get_issue(self, _board: str, _issue_id: int) -> FakeIssue:
+        """Return a fake issue."""
         return FakeIssue(1, "Issue 1", "Body 1", FakeIssueState.OPEN)
 
     def create_issue(self, _board: str, title: str, body: str) -> FakeIssue:
+        """Return a fake created issue."""
         return FakeIssue(3, title, body, FakeIssueState.OPEN)
 
     def close_issue(self, _board: str, _issue_id: int) -> bool:
+        """Return success."""
         return True
 
     def add_comment(self, _board: str, _issue_id: int, body: str) -> FakeComment:
+        """Return a fake comment."""
         return FakeComment(10, body)
 
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Issue endpoints
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 def test_missing_env_returns_500() -> None:
     """Missing env variables returns 500 error."""
@@ -265,32 +279,45 @@ def test_add_comment_returns_comment() -> None:
     assert response.status_code == HTTP_OK
     assert response.json() == {"id": 10, "body": "Nice"}
 
-# -----------------------------------------------------------------------------
-# Session/Refresh
-# -----------------------------------------------------------------------------
 
-def test_get_client_refreshes_expired_token() -> None:
-    """Expired session refreshes the access token."""
-    expired_time = time.time() - 10
-    save_session(
-        "session-1",
-        OLD_ACCESS_TOKEN,
-        TEST_REFRESH_TOKEN,
-        expired_time,
-    )
+# ---------------------------------------------------------------------------
+# Session
+# ---------------------------------------------------------------------------
 
-    with (
-        patch.object(
-            app_module,
-            "refresh_access_token",
-            return_value={"access_token": NEW_ACCESS_TOKEN, "expires_in": 3600},
-        ),
-        patch.dict("os.environ", {"TRELLO_API_KEY": "key"}),
-    ):
+
+def test_get_client_uses_session_token() -> None:
+    """Client is built using session token when available."""
+    save_session("session-1", "user-trello-token", None, None)
+
+    with patch.dict("os.environ", {"TRELLO_API_KEY": "key"}):
         client_obj = app_module.get_client(session_id="session-1")
 
-    session = get_session("session-1")
-    assert session is not None
-    assert session.access_token == NEW_ACCESS_TOKEN
-    assert session.expires_at is not None
     assert isinstance(client_obj, DefaultIssueTrackerClient)
+
+
+def test_get_client_falls_back_to_env_token() -> None:
+    """Client uses env token when no session is provided."""
+    with patch.dict(
+        "os.environ",
+        {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "tok"},
+    ):
+        client_obj = app_module.get_client(session_id=None)
+
+    assert isinstance(client_obj, DefaultIssueTrackerClient)
+
+
+def test_root_returns_message() -> None:
+    """Root endpoint returns a running message."""
+    response = client.get("/")
+    assert response.status_code == HTTP_OK
+    assert "running" in response.json()["message"].lower()
+
+
+def test_auth_callback_with_error_returns_400() -> None:
+    """Callback with error parameter returns 400."""
+    state = create_state()
+    response = client.get(
+        "/auth/callback",
+        params={"state": state, "error": "access_denied"},
+    )
+    assert response.status_code == HTTP_BAD_REQUEST
