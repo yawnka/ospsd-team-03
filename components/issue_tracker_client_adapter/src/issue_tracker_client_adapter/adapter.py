@@ -66,7 +66,7 @@ class ServiceClientAdapter(IssueTrackerClient):
         )
         if not isinstance(response, IssueOut):
             msg = "Failed to create issue"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         return _to_issue(response)
 
     def close_issue(self, board: str, issue_id: int) -> bool:
@@ -86,5 +86,5 @@ class ServiceClientAdapter(IssueTrackerClient):
         )
         if not isinstance(response, CommentOut):
             msg = "Failed to add comment"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         return Comment(id=response.id, body=response.body)
