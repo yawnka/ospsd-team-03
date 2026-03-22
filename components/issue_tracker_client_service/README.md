@@ -1,7 +1,7 @@
-# DRAFT - Issue Tracker Client Service (FastAPI)
+# Issue Tracker Client Service (FastAPI)
 
 ## Overview
-`issue_tracker_client_service` provides a FastAPI-based HTTP service for the issue tracker system. It wraps the concrete issue tracker implementation, exposes issue operations as REST endpoints, includes a health-check endpoint, and supports OAuth 2.0 login/callback flows at the service layer.
+`issue_tracker_client_service` provides a FastAPI-based HTTP service for the issue tracker system. It wraps the concrete issue tracker implementation, exposes issue operations as REST endpoints, includes a health-check endpoint, and supports Trello's redirect-based authorization login/callback flows at the service layer.
 
 ## Purpose
 
@@ -9,12 +9,12 @@ This package serves as the web service layer for the Issue Tracker abstraction:
 
 - FastAPI Service Layer: Exposes issue tracker functionality over HTTP
 - REST API Endpoints: Supports listing, retrieving, creating, closing, and commenting on issues
-- OAuth 2.0 Flow: Provides login and callback endpoints for browser-based authentication
+- Trello Authorization Flow: Provides login and callback endpoints for browser-based Trello authentication
 - Session-Based Authentication: Stores authenticated sessions in an in-memory session store
-- Automatic Token Refresh: Refreshes expired access tokens
+- Automatic Token Refresh: Refreshes expired access tokens (not yet implemented)
 - Dependency Injection: Uses a request-scoped client dependency
 - OpenAPI Documentation: Automatically generates Swagger/OpenAPI docs
-- Multi-User Support: Enables per-user authentication using OAuth sessions
+- Multi-User Support: Enables per-user authentication using Trello authorization sessions
 
 
 ## Architecture
@@ -35,7 +35,7 @@ ClientDependency = Annotated[DefaultIssueTrackerClient, Depends(get_client)]
 The client is created using:
 
 1. Session cookie (preferred)  
-   Uses stored OAuth access token if `session_id` is present.
+   Uses stored Trello access token if `session_id` is present.
 
 2. Environment variables (fallback)  
    Uses Trello API credentials for local/testing usage.
@@ -48,31 +48,13 @@ Endpoints:
 
 Flow:
 1. User hits /auth/login
-2. Service redirects to OAuth provider (Google)
-3. User logs in & consents
-4. Provider redirects to /auth/callback
-5. Service exchanges code → tokens
+2. Service redirects to Trello authorization page
+3. User authorizes the app
+4. Trello redirects to /auth/callback with token in URL fragment
+5. Callback page extracts token from URL fragment and POSTs to /auth/token
 6. Service creates session
 7. Session stored in memory
 8. `Cookie (session_id)` returned to user
-
-## Token Refresh
-Access tokens expire (~1 hour). Without refresh, authenticated requests will fail.
-
-Inside `get_client`:
-```python
-if session and session.expires_at and time.time() > session.expires_at:
-    new_tokens = refresh_access_token(session.refresh_token)
-```
-The refresh logic is executed automatically during request handling.
-
-### Behavior
-- Detects expired token
-- Calls OAuth provider
-- Updates session:
-    - new `access_token`
-    - new `expires_at`
-- Continues request seamlessly
 
 ### Session Model
 ```python
@@ -84,14 +66,10 @@ class UserSession:
 ```
 
 - No database needed (in-memory store)
-- Refresh happens only on request
-- User never notices refresh
 - Falls back to env vars if no session
 
 ## Environment Variables
 ```bash
-export OAUTH_CLIENT_ID="your_oauth_client_id"
-export OAUTH_CLIENT_SECRET="your_oauth_client_secret"
 export REDIRECT_URI="http://localhost:8000/auth/callback"
 export TRELLO_API_KEY="your_api_key"
 export TRELLO_API_TOKEN="your_api_token"
@@ -103,7 +81,7 @@ export TRELLO_API_TOKEN="your_api_token"
 - `GET /`
 - `GET /health`
 
-### OAuth
+### Auth
 - `GET /auth/login`
 - `GET /auth/callback`
 
