@@ -1,4 +1,4 @@
-# DRAFT - Issue Tracker Client Service (FastAPI)
+# Issue Tracker Client Service (FastAPI)
 
 ## Overview
 `issue_tracker_client_service` provides a FastAPI-based HTTP service for the issue tracker system. It wraps the concrete issue tracker implementation, exposes issue operations as REST endpoints, includes a health-check endpoint, and supports OAuth 2.0 login/callback flows at the service layer.
@@ -48,10 +48,10 @@ Endpoints:
 
 Flow:
 1. User hits /auth/login
-2. Service redirects to OAuth provider (Google)
-3. User logs in & consents
-4. Provider redirects to /auth/callback
-5. Service exchanges code → tokens
+2. Service redirects to Trello authorization page
+3. User authorizes the app
+4. Trello redirects to /auth/callback
+5. Callback page extracts token from URL fragment and POSTs to /auth/token
 6. Service creates session
 7. Session stored in memory
 8. `Cookie (session_id)` returned to user
