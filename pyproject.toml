@@ -47,6 +47,10 @@ ignore = [
     "SLF001",
 ]
 
+"components/**/src/main.py" = [
+    "INP001",  # standalone dev entry point, not a package module
+]
+
 [tool.ruff.format]
 # use ruff format defaults (black-compatible)
 

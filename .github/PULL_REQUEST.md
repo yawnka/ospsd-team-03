@@ -30,14 +30,21 @@
   - DI auto-registration on import
 
   ### Task 4: Deployment + CircleCI
-  - [ ] Dockerfile and Render deployment config
-  - [ ] CircleCI deploy job for automatic deployment on push
-  - [ ] Environment variables configured on Render
+  - Added multi-stage `Dockerfile` for production deployment
+  - Added `render.yaml` with service config, health check, and environment variable bindings
+  - Added CircleCI `deploy` job that triggers Render deploy hook and verifies `/health`
+  - Configured automatic deployment on push to `hw-2` branch
+  - Environment variables (`TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `REDIRECT_URI`) stored
+  via Render's native secrets manager
 
   ### Task 5: Docs + Cleanup
-  - [ ] MkDocs updated with new HW2 components
-  - [ ] README updates for deployment steps
-  - [ ] mypy/ruff passing across all components
+  - Fixed mypy "source file found twice" error by removing spurious `src/__init__.py`
+  - Fixed ruff import sorting violation (I001) in `app.py`
+  - Added MkDocs documentation pages for service, service client, and adapter components
+  - Updated `mkdocs.yml` nav and plugin paths for all five components
+  - Updated `docs/index.md` to reflect full HW2 architecture
+  - Updated root `README.md` with all five components, project structure, and deployment section
+  - Fixed service `README.md`: removed DRAFT label, corrected OAuth provider from Google to Trello
 
   ## Files Modified
 
@@ -66,13 +73,29 @@
   - `components/issue_tracker_client_service_client/` — auto-generated OpenAPI client
   - `components/issue_tracker_client_adapter/` — service client adapter
 
+  ### Task 4 (Deployment)
+  - `Dockerfile` — multi-stage Docker build
+  - `render.yaml` — Render service configuration
+  - `.circleci/config.yml` — deploy job with health check verification
+
+  ### Task 5 (Docs + Cleanup)
+  - `components/issue_tracker_client_service/src/__init__.py` — removed (caused mypy duplicate module)
+  - `components/issue_tracker_client_service/src/issue_tracker_client_service/app.py` — fixed import sorting
+  - `components/issue_tracker_client_service/README.md` — removed DRAFT, corrected OAuth provider
+  - `README.md` — all five components, deployment section, updated project structure
+  - `mkdocs.yml` — added three new component pages to nav and plugin paths
+  - `docs/index.md` — updated to reflect full architecture
+  - `docs/components/issue_tracker_client_service.md` — new
+  - `docs/components/issue_tracker_client_service_client.md` — new
+  - `docs/components/issue_tracker_client_adapter.md` — new
+
   ## Testing
 
-  - [ ] All unit tests pass (`pytest components/ -v`)
-  - [ ] Ruff passes (`ruff check .`)
-  - [ ] MyPy passes (`mypy`)
-  - [ ] Coverage meets 85% threshold
-  - [ ] Trello auth flow tested locally (login → consent → token saved)
+  - [x] All unit tests pass (67 passed, 1 skipped)
+  - [x] Ruff passes (`ruff check .`)
+  - [x] MyPy passes (`mypy -p ... --explicit-package-bases`)
+  - [x] Coverage meets 85% threshold (94.10%)
+  - [x] MkDocs builds cleanly (`mkdocs build --strict`)
 
   ## Notes for Reviewers
 

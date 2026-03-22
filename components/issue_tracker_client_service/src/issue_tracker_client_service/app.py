@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from issue_tracker_client_api.client import Issue
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
+
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AddCommentIn,
