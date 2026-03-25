@@ -7,7 +7,7 @@
 It provides:
 
 - REST endpoints for all core issue operations (list, get, create, close, comment)
-- OAuth 2.0 login/callback flow for Trello authentication
+- Trello redirect-based authorization login/callback flow
 - Session-based multi-user support with in-memory session storage
 - Health check endpoint for operational monitoring
 - Auto-generated OpenAPI/Swagger documentation

@@ -31,8 +31,8 @@ This project is built on the principle of "programming integrated over time." Th
 The project is a `uv` workspace containing five packages:
 
 1.  **`issue_tracker_client_api`**: Defines the abstract `IssueTrackerClient` base class (ABC). This is the contract for what actions an issue tracker client can perform (e.g., `list_issues`, `get_issue`, etc.).
-2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API with OAuth 2.0 authentication.
-3.  **`issue_tracker_client_service`**: A FastAPI service that exposes the implementation over HTTP endpoints, including OAuth 2.0 login/callback flow and session-based multi-user support.
+2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API with Trello's redirect-based token authorization.
+3.  **`issue_tracker_client_service`**: A FastAPI service that exposes the implementation over HTTP endpoints, including Trello authorization login/callback flow and session-based multi-user support.
 4.  **`issue_tracker_client_service_client`**: An auto-generated type-safe HTTP client created from the service's OpenAPI spec using `openapi-python-client`.
 5.  **`issue_tracker_client_adapter`**: An adapter implementing `IssueTrackerClient` that delegates to the remote service via the auto-generated client, achieving location transparency.
 
@@ -64,7 +64,7 @@ ospsd-team-03
 │   │   ├── src/
 │   │   │   └── issue_tracker_client_impl/
 │   │   │       ├── client.py              # Concrete Trello client implementation
-│   │   │       └── oauth.py               # OAuth 2.0 authorization helpers
+│   │   │       └── oauth.py               # Trello authorization helpers
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   └── tests/
@@ -271,7 +271,7 @@ The FastAPI service is deployed to **Render** using Docker.
 |----------|-------------|
 | `TRELLO_API_KEY` | Trello API key |
 | `TRELLO_API_TOKEN` | Trello API token |
-| `REDIRECT_URI` | OAuth callback URL for deployed service |
+| `REDIRECT_URI` | Trello authorization callback URL for deployed service |
 
 All secrets are stored via Render's native secrets manager. No secrets are committed to source control.
 
