@@ -7,7 +7,7 @@ Conceptually, Trello **cards** are treated as **issues**.
 ## Overview
 This project implements a provider-agnostic issue tracker system using:
 - A clean **abstract API package**
-- A concrete **Trello implementation** with OAuth 2.0
+- A concrete **Trello implementation** with Trello's redirect-based token authorization
 - A **FastAPI service** exposing the implementation over HTTP
 - An **auto-generated client** for type-safe HTTP calls
 - A **service client adapter** achieving location transparency
@@ -95,7 +95,7 @@ ospsd-team-03
     FastAPI service exposing the implementation over HTTP endpoints.
     This package:
     - Provides REST endpoints for all issue operations
-    - Handles OAuth 2.0 login/callback flow
+    - Handles Trello authorization login/callback flow
     - Supports session-based multi-user authentication
 
 4. **`issue_tracker_client_service_client`**
