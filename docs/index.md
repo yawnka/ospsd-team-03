@@ -165,6 +165,9 @@ Project documentation is organized as follows:
 - [Adapter Documentation](components/issue_tracker_client_adapter.md)
     Documentation for the service client adapter.
 
+- [Design Document](design.md)
+    Architecture and design decisions for HW2: Adapter Pattern, OAuth flow, deployment.
+
 - [Component Architecture](component.md)
     Explains the system design, abstraction layer, and dependency injection approach.
 
