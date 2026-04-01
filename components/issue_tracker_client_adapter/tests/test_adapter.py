@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
-from issue_tracker_client_api.client import Comment, Issue, IssueState, get_client
+from issue_tracker_client_api.client import Comment, Issue, IssueNotFoundError, IssueState, get_client
 from issue_tracker_client_service_client.models import (
     CloseIssueBoardsBoardIssuesIssueIdClosePostResponseCloseIssueBoardsBoardIssuesIssueIdClosePost as CloseIssueResponse,  # noqa: E501
 )
@@ -113,10 +113,10 @@ def test_get_issue(mock_get: MagicMock, adapter: ServiceClientAdapter) -> None:
 def test_get_issue_not_found(
     mock_get: MagicMock, adapter: ServiceClientAdapter
 ) -> None:
-    """Test getting a non-existent issue raises KeyError."""
+    """Test getting a non-existent issue raises IssueNotFoundError."""
     mock_get.sync.return_value = None
 
-    with pytest.raises(KeyError):
+    with pytest.raises(IssueNotFoundError):
         adapter.get_issue("test-board", 999)
 
 
