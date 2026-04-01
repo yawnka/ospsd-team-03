@@ -31,6 +31,18 @@ class Comment:
     body: str
 
 
+class IssueNotFoundError(Exception):
+    """Raised when a requested issue does not exist."""
+
+
+class IssueCreateError(Exception):
+    """Raised when an issue could not be created."""
+
+
+class CommentAddError(Exception):
+    """Raised when a comment could not be added to an issue."""
+
+
 class IssueTrackerClient(abc.ABC):
     """Abstract contract for interacting with an issue tracker."""
 
