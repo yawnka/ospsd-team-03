@@ -141,6 +141,62 @@ def test_client_raises_without_token() -> None:
             _api.get_client()
 
 
+def test_location_transparency_impl_wins() -> None:
+    """Location transparency: _adapter then _impl → get_client() returns DefaultIssueTrackerClient.
+
+    Both packages are imported. The last registration (_impl) wins.
+    get_client() must return an IssueTrackerClient without any real server connection.
+    """
+    from issue_tracker_client_api.client import IssueTrackerClient
+    from issue_tracker_client_impl.client import DefaultIssueTrackerClient
+
+    _api._factories.clear()
+    sys.modules.pop("issue_tracker_client_adapter", None)
+    sys.modules.pop("issue_tracker_client_impl", None)
+
+    env = {
+        "ISSUE_TRACKER_SERVICE_URL": "http://fake-service:8000",
+        "TRELLO_API_KEY": "fake-key",
+        "TRELLO_API_TOKEN": "fake-token",
+    }
+    with patch.dict("os.environ", env):
+        import issue_tracker_client_adapter  # noqa: PLC0415, F401
+        import issue_tracker_client_impl  # noqa: PLC0415, F401
+
+        client = _api.get_client()
+
+    assert isinstance(client, IssueTrackerClient)
+    assert isinstance(client, DefaultIssueTrackerClient)
+
+
+def test_location_transparency_adapter_wins() -> None:
+    """Location transparency: _impl then _adapter → get_client() returns ServiceClientAdapter.
+
+    Both packages are imported. The last registration (_adapter) wins.
+    get_client() must return an IssueTrackerClient without any real server connection.
+    """
+    from issue_tracker_client_adapter.adapter import ServiceClientAdapter
+    from issue_tracker_client_api.client import IssueTrackerClient
+
+    _api._factories.clear()
+    sys.modules.pop("issue_tracker_client_impl", None)
+    sys.modules.pop("issue_tracker_client_adapter", None)
+
+    env = {
+        "TRELLO_API_KEY": "fake-key",
+        "TRELLO_API_TOKEN": "fake-token",
+        "ISSUE_TRACKER_SERVICE_URL": "http://fake-service:8000",
+    }
+    with patch.dict("os.environ", env):
+        import issue_tracker_client_impl  # noqa: PLC0415, F401
+        import issue_tracker_client_adapter  # noqa: PLC0415, F401
+
+        client = _api.get_client()
+
+    assert isinstance(client, IssueTrackerClient)
+    assert isinstance(client, ServiceClientAdapter)
+
+
 @pytest.mark.local_credentials
 def test_full_workflow_against_real_trello() -> None:
     """Full E2E workflow: client creation → API call → response handling."""
