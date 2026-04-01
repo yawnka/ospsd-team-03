@@ -3,12 +3,17 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
-from issue_tracker_client_api.client import Comment, Issue, IssueNotFoundError, IssueState, get_client
-from issue_tracker_client_service_client.models import (
-    CloseIssueBoardsBoardIssuesIssueIdClosePostResponseCloseIssueBoardsBoardIssuesIssueIdClosePost as CloseIssueResponse,  # noqa: E501
+from issue_tracker_client_api.client import (
+    Comment,
+    Issue,
+    IssueNotFoundError,
+    IssueState,
+    get_client,
 )
 from issue_tracker_client_service_client.models import (
+    CloseIssueBoardsBoardIssuesIssueIdClosePostResponseCloseIssueBoardsBoardIssuesIssueIdClosePost as CloseIssueResponse,  # noqa: E501
     CommentOut,
     IssueOut,
 )
