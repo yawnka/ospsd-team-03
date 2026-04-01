@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import issue_tracker_client_api.client as _api
 import pytest
+from issue_tracker_client_api.client import IssueTrackerClient
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
 # Mark all tests in this file as e2e tests
@@ -80,7 +81,7 @@ def test_all_imports_work() -> None:
         check=False,
         timeout=30,
         cwd=str(WORKSPACE_ROOT),
-        env={**__import__("os").environ, "TRELLO_API_KEY": "dummy"},
+        env={**os.environ, "TRELLO_API_KEY": "dummy"},
     )
 
     if result.returncode != 0:
@@ -142,14 +143,11 @@ def test_client_raises_without_token() -> None:
 
 
 def test_location_transparency_impl_wins() -> None:
-    """Location transparency: _adapter then _impl → get_client() returns DefaultIssueTrackerClient.
+    """Location transparency: _adapter then _impl → _impl wins.
 
     Both packages are imported. The last registration (_impl) wins.
     get_client() must return an IssueTrackerClient without any real server connection.
     """
-    from issue_tracker_client_api.client import IssueTrackerClient
-    from issue_tracker_client_impl.client import DefaultIssueTrackerClient
-
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_adapter", None)
     sys.modules.pop("issue_tracker_client_impl", None)
@@ -170,13 +168,12 @@ def test_location_transparency_impl_wins() -> None:
 
 
 def test_location_transparency_adapter_wins() -> None:
-    """Location transparency: _impl then _adapter → get_client() returns ServiceClientAdapter.
+    """Location transparency: _impl then _adapter → _adapter wins.
 
     Both packages are imported. The last registration (_adapter) wins.
     get_client() must return an IssueTrackerClient without any real server connection.
     """
-    from issue_tracker_client_adapter.adapter import ServiceClientAdapter
-    from issue_tracker_client_api.client import IssueTrackerClient
+    from issue_tracker_client_adapter.adapter import ServiceClientAdapter  # noqa: I001, PLC0415
 
     _api._factories.clear()
     sys.modules.pop("issue_tracker_client_impl", None)
@@ -188,7 +185,7 @@ def test_location_transparency_adapter_wins() -> None:
         "ISSUE_TRACKER_SERVICE_URL": "http://fake-service:8000",
     }
     with patch.dict("os.environ", env):
-        import issue_tracker_client_impl  # noqa: PLC0415, F401
+        import issue_tracker_client_impl  # noqa: I001, PLC0415, F401
         import issue_tracker_client_adapter  # noqa: PLC0415, F401
 
         client = _api.get_client()
