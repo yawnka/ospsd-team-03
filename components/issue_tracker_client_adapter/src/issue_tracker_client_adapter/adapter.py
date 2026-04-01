@@ -1,8 +1,13 @@
 """Service client adapter implementing the IssueTrackerClient interface."""
 
+import os
+
 from issue_tracker_client_api.client import (
     Comment,
+    CommentAddError,
     Issue,
+    IssueCreateError,
+    IssueNotFoundError,
     IssueState,
     IssueTrackerClient,
 )
@@ -37,7 +42,10 @@ class ServiceClientAdapter(IssueTrackerClient):
 
     def __init__(self, base_url: str) -> None:
         """Initialize the adapter with the base URL of the remote service."""
-        self._client = AuthenticatedClient(base_url=base_url, token="")
+        self._client = AuthenticatedClient(
+            base_url=base_url,
+            token=os.environ.get("ISSUE_TRACKER_TOKEN", ""),
+        )
 
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for the given board."""
@@ -55,7 +63,7 @@ class ServiceClientAdapter(IssueTrackerClient):
         )
         if not isinstance(response, IssueOut):
             msg = f"Issue {issue_id} not found"
-            raise KeyError(msg)
+            raise IssueNotFoundError(msg)
         return _to_issue(response)
 
     def create_issue(self, board: str, title: str, body: str) -> Issue:
@@ -66,7 +74,7 @@ class ServiceClientAdapter(IssueTrackerClient):
         )
         if not isinstance(response, IssueOut):
             msg = "Failed to create issue"
-            raise TypeError(msg)
+            raise IssueCreateError(msg)
         return _to_issue(response)
 
     def close_issue(self, board: str, issue_id: int) -> bool:
@@ -86,5 +94,5 @@ class ServiceClientAdapter(IssueTrackerClient):
         )
         if not isinstance(response, CommentOut):
             msg = "Failed to add comment"
-            raise TypeError(msg)
+            raise CommentAddError(msg)
         return Comment(id=response.id, body=response.body)
