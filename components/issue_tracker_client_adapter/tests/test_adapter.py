@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
 from issue_tracker_client_api.client import (
     Comment,
@@ -14,6 +13,8 @@ from issue_tracker_client_api.client import (
 )
 from issue_tracker_client_service_client.models import (
     CloseIssueBoardsBoardIssuesIssueIdClosePostResponseCloseIssueBoardsBoardIssuesIssueIdClosePost as CloseIssueResponse,  # noqa: E501
+)
+from issue_tracker_client_service_client.models import (
     CommentOut,
     IssueOut,
 )
