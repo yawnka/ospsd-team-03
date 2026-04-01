@@ -4,6 +4,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/yawnka/ospsd-team-03)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Deployed Service](https://img.shields.io/badge/deployed%20service-render-brightgreen)](https://ospsd-team-03.onrender.com)
 
 ## Team Members
 - `ys4780`  Yanka Sikder `@yawnka`
@@ -31,10 +32,18 @@ This project is built on the principle of "programming integrated over time." Th
 The project is a `uv` workspace containing five packages:
 
 1.  **`issue_tracker_client_api`**: Defines the abstract `IssueTrackerClient` base class (ABC). This is the contract for what actions an issue tracker client can perform (e.g., `list_issues`, `get_issue`, etc.).
-2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API with Trello's redirect-based token authorization.
+2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API. Trello does not support the standard OAuth 2.0 authorization code grant — it returns tokens via the URL fragment, making server-side code exchange impossible. With the professor's approval, we use Trello's redirect-based token flow (OAuth 1.0 style) instead.
 3.  **`issue_tracker_client_service`**: A FastAPI service that exposes the implementation over HTTP endpoints, including Trello authorization login/callback flow and session-based multi-user support.
 4.  **`issue_tracker_client_service_client`**: An auto-generated type-safe HTTP client created from the service's OpenAPI spec using `openapi-python-client`.
 5.  **`issue_tracker_client_adapter`**: An adapter implementing `IssueTrackerClient` that delegates to the remote service via the auto-generated client, achieving location transparency.
+
+## Authentication Model
+
+Authentication is implemented using a session-based flow.
+
+After login, the service creates a session and sets an HTTP-only `session_id` cookie. This cookie is automatically included in all subsequent requests and is used by the service to resolve the authenticated user.
+
+The system does not use bearer tokens or `Authorization` headers. Authentication is handled transparently via cookies, and the adapter layer ensures requests include the session information.
 
 ## Project Structure
 
@@ -85,10 +94,11 @@ ospsd-team-03
 │   │       └── test_service.py
 │   │
 │   ├── issue_tracker_client_service_client/  # Auto-generated HTTP client
-│   │   ├── issue_tracker_client_service_client/
-│   │   │   ├── api/                       # Generated endpoint modules
-│   │   │   ├── models/                    # Generated Pydantic models
-│   │   │   └── client.py                  # Client / AuthenticatedClient
+│   │   ├── src/
+│   │   │   └── issue_tracker_client_service_client/
+│   │   │       ├── api/                   # Generated endpoint modules
+│   │   │       ├── models/                # Generated Pydantic models
+│   │   │       └── client.py              # Client / AuthenticatedClient
 │   │   ├── pyproject.toml
 │   │   └── README.md
 │   │
@@ -261,6 +271,7 @@ The FastAPI service is deployed to **Render** using Docker.
 ### Platform Details
 
 - **Provider:** [Render](https://render.com)
+- **Live URL:** <https://ospsd-team-03.onrender.com>
 - **Runtime:** Docker (multi-stage build)
 - **Branch:** `hw-2` (auto-deploys on push)
 - **Health Check:** `GET /health` returns HTTP 200

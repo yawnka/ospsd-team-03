@@ -43,3 +43,10 @@ class AuthStatusOut(BaseModel):
 
     status: str
     session_id: str | None = None
+
+
+class TokenIn(BaseModel):
+    """Represent the token POST body sent by the callback JS bridge."""
+
+    token: str
+    state: str | None = None

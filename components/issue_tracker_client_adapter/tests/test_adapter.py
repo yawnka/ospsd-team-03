@@ -4,7 +4,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
-from issue_tracker_client_api.client import Comment, Issue, IssueState, get_client
+from issue_tracker_client_api.client import (
+    Comment,
+    Issue,
+    IssueCloseError,
+    IssueListError,
+    IssueNotFoundError,
+    IssueState,
+    get_client,
+)
 from issue_tracker_client_service_client.models import (
     CloseIssueBoardsBoardIssuesIssueIdClosePostResponseCloseIssueBoardsBoardIssuesIssueIdClosePost as CloseIssueResponse,  # noqa: E501
 )
@@ -75,12 +83,11 @@ def test_list_issues(mock_list: MagicMock, adapter: ServiceClientAdapter) -> Non
 
 @patch("issue_tracker_client_adapter.adapter.list_issues_boards_board_issues_get")
 def test_list_issues_empty(mock_list: MagicMock, adapter: ServiceClientAdapter) -> None:
-    """Test listing issues returns empty list when response is None."""
+    """Test listing issues raises IssueListError when response is None."""
     mock_list.sync.return_value = None
 
-    result = adapter.list_issues("test-board")
-
-    assert result == []
+    with pytest.raises(IssueListError):
+        adapter.list_issues("test-board")
 
 
 # ---------------------------------------------------------------------------
@@ -113,10 +120,10 @@ def test_get_issue(mock_get: MagicMock, adapter: ServiceClientAdapter) -> None:
 def test_get_issue_not_found(
     mock_get: MagicMock, adapter: ServiceClientAdapter
 ) -> None:
-    """Test getting a non-existent issue raises KeyError."""
+    """Test getting a non-existent issue raises IssueNotFoundError."""
     mock_get.sync.return_value = None
 
-    with pytest.raises(KeyError):
+    with pytest.raises(IssueNotFoundError):
         adapter.get_issue("test-board", 999)
 
 
@@ -169,12 +176,11 @@ def test_close_issue(mock_close: MagicMock, adapter: ServiceClientAdapter) -> No
 def test_close_issue_not_found(
     mock_close: MagicMock, adapter: ServiceClientAdapter
 ) -> None:
-    """Test closing an issue returns False when the response is None."""
+    """Test closing an issue raises IssueCloseError when response is None."""
     mock_close.sync.return_value = None
 
-    result = adapter.close_issue("test-board", 999)
-
-    assert result is False
+    with pytest.raises(IssueCloseError):
+        adapter.close_issue("test-board", 999)
 
 
 # ---------------------------------------------------------------------------
