@@ -4,6 +4,7 @@ import requests
 from issue_tracker_client_api.client import (
     Comment,
     Issue,
+    IssueNotFoundError,
     IssueState,
     IssueTrackerClient,
 )
@@ -35,7 +36,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
             if card["idShort"] == issue_id:
                 return str(card["id"])
         msg = f"Card with idShort={issue_id} not found on board {board}"
-        raise ValueError(msg)
+        raise IssueNotFoundError(msg)
 
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for *board*."""
