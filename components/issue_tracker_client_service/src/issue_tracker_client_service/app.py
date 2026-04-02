@@ -19,6 +19,7 @@ from issue_tracker_client_service.schemas import (
     CreateIssueIn,
     HealthOut,
     IssueOut,
+    TokenIn,
 )
 from issue_tracker_client_service.session import get_session, save_session
 
@@ -28,10 +29,14 @@ app = FastAPI(
     description="FastAPI service exposing the issue tracker client implementation.",
 )
 
+_cors_origin = os.environ.get("ALLOWED_ORIGIN")
+# allow_credentials=True is invalid with allow_origins=["*"].
+# Use explicit origin + credentials when ALLOWED_ORIGIN is set;
+# fall back to "*" without credentials otherwise.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
-    allow_credentials=True,
+    allow_origins=[_cors_origin] if _cors_origin else ["*"],
+    allow_credentials=_cors_origin is not None,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -116,7 +121,9 @@ def auth_callback(
 
     consume_state(state)
 
-    # Return HTML that extracts the token from the fragment and POSTs it
+    # Return HTML that extracts the token from the fragment and POSTs it.
+    # The fragment (#token=...) is never sent to the server by the browser,
+    # so we use a JS bridge to read it from window.location.hash and POST it.
     html = f"""<!DOCTYPE html>
 <html>
 <head><title>Authenticating...</title></head>
@@ -132,7 +139,19 @@ def auth_callback(
             headers: {{"Content-Type": "application/json"}},
             body: JSON.stringify({{token: token, state: "{state}"}})
         }}).then(resp => resp.json()).then(data => {{
-            document.body.innerHTML = "<p>Authenticated!</p>";
+            if (data.session_id) {{
+                document.body.innerHTML =
+                    "<h3>Authenticated!</h3>" +
+                    "<p>Copy your <strong>session_id</strong> for API requests:</p>" +
+                    "<code style='background:#f0f0f0;padding:8px 12px;display:block;" +
+                    "word-break:break-all;border-radius:4px;font-size:14px'>" +
+                    data.session_id + "</code>" +
+                    "<p style='color:#555;font-size:13px'>In Swagger UI: click " +
+                    "<strong>Authorize</strong>, or send it as the " +
+                    "<strong>session_id</strong> cookie on your requests.</p>";
+            }} else {{
+                document.body.innerHTML = "<p>Authenticated!</p>";
+            }}
         }}).catch(err => {{
             document.body.innerHTML = "<p>Error: " + err + "</p>";
         }});
@@ -146,17 +165,19 @@ def auth_callback(
 
 
 @app.post("/auth/token")
-def auth_token(
-    request_body: dict[str, str],
-) -> AuthStatusOut:
-    """Receive the Trello token from the client-side callback page."""
-    token = request_body.get("token")
-    if not token:
-        raise HTTPException(status_code=400, detail="Missing token")
+def auth_token(request_body: TokenIn) -> AuthStatusOut:
+    """Receive the Trello token posted by the callback page's JS bridge.
 
+    This endpoint is called automatically by the JavaScript returned from
+    ``/auth/callback`` — it is not intended to be invoked directly.
+    """
     session_id = secrets.token_urlsafe(32)
-    save_session(session_id, access_token=token, refresh_token=None, expires_at=None)
-
+    save_session(
+        session_id,
+        access_token=request_body.token,
+        refresh_token=None,
+        expires_at=None,
+    )
     return AuthStatusOut(status="authenticated", session_id=session_id)
 
 
