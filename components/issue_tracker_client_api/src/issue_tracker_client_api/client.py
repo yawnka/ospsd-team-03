@@ -35,8 +35,16 @@ class IssueNotFoundError(Exception):
     """Raised when a requested issue does not exist."""
 
 
+class IssueListError(Exception):
+    """Raised when listing or retrieving issues fails."""
+
+
 class IssueCreateError(Exception):
     """Raised when an issue could not be created."""
+
+
+class IssueCloseError(Exception):
+    """Raised when an issue could not be closed."""
 
 
 class CommentAddError(Exception):
@@ -52,27 +60,52 @@ class IssueTrackerClient(abc.ABC):
 
         *board* is a provider-specific string identifier (e.g. a project key,
         workspace slug, or repository name) used solely as a lookup key.
+
+        Raises:
+            IssueListError: If the issues could not be listed.
+
         """
 
     @abc.abstractmethod
     def get_issue(self, board: str, issue_id: int) -> Issue:
-        """Return the issue identified by *issue_id* on *board*."""
+        """Return the issue identified by *issue_id* on *board*.
+
+        Raises:
+            IssueNotFoundError: If the requested issue does not exist.
+            IssueListError: If the issue could not be retrieved.
+
+        """
 
     @abc.abstractmethod
     def create_issue(self, board: str, title: str, body: str) -> Issue:
-        """Open a new issue on *board* and return the created record."""
+        """Open a new issue on *board* and return the created record.
+
+        Raises:
+            IssueCreateError: If the issue could not be created.
+
+        """
 
     @abc.abstractmethod
     def close_issue(self, board: str, issue_id: int) -> bool:
         """Close the issue identified by *issue_id* on *board*.
 
         Returns True if the issue was successfully closed.
-        Raises on failure.
+
+        Raises:
+            IssueNotFoundError: If the requested issue does not exist.
+            IssueCloseError: If the issue could not be closed.
+
         """
 
     @abc.abstractmethod
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
-        """Post a comment on *issue_id* on *board* and return the created record."""
+        """Post a comment on *issue_id* on *board* and return the created record.
+
+        Raises:
+            IssueNotFoundError: If the requested issue does not exist.
+            CommentAddError: If the comment could not be added.
+
+        """
 
 
 _factories: list[Callable[[], IssueTrackerClient]] = []

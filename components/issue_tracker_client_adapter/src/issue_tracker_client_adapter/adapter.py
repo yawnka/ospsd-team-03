@@ -7,7 +7,9 @@ from issue_tracker_client_api.client import (
     Comment,
     CommentAddError,
     Issue,
+    IssueCloseError,
     IssueCreateError,
+    IssueListError,
     IssueNotFoundError,
     IssueState,
     IssueTrackerClient,
@@ -26,6 +28,8 @@ from issue_tracker_client_service_client.models import (
     CreateIssueIn,
     IssueOut,
 )
+
+NOT_FOUND = 404
 
 
 def _to_issue(issue: IssueOut) -> Issue:
@@ -54,11 +58,19 @@ class ServiceClientAdapter(IssueTrackerClient):
             response = list_issues_boards_board_issues_get.sync(
                 board=board, client=self._client
             )
-        except Exception:  # noqa: BLE001
-            return []
+        except httpx.HTTPError as exc:
+            msg = f"Failed to list issues for board {board}"
+            raise IssueListError(msg) from exc
+
+        if response is None:
+            msg = f"Failed to list issues for board {board}"
+            raise IssueListError(msg)
+
         if not isinstance(response, list):
-            return []
-        return [_to_issue(i) for i in response]
+            msg = f"Failed to list issues for board {board}"
+            raise IssueListError(msg)
+
+        return [_to_issue(issue) for issue in response]
 
     def get_issue(self, board: str, issue_id: int) -> Issue:
         """Return the issue identified by issue_id on board."""
@@ -66,15 +78,24 @@ class ServiceClientAdapter(IssueTrackerClient):
             response = get_issue_boards_board_issues_issue_id_get.sync(
                 board=board, issue_id=issue_id, client=self._client
             )
-        except httpx.HTTPStatusError as e:
-            msg = f"Issue {issue_id} not found"
-            raise IssueNotFoundError(msg) from e
-        except Exception as e:
-            msg = f"Issue {issue_id} not found"
-            raise IssueNotFoundError(msg) from e
-        if not isinstance(response, IssueOut):
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == NOT_FOUND:
+                msg = f"Issue {issue_id} not found"
+                raise IssueNotFoundError(msg) from exc
+            msg = f"Failed to get issue {issue_id}"
+            raise IssueListError(msg) from exc
+        except httpx.HTTPError as exc:
+            msg = f"Failed to get issue {issue_id}"
+            raise IssueListError(msg) from exc
+
+        if response is None:
             msg = f"Issue {issue_id} not found"
             raise IssueNotFoundError(msg)
+
+        if not isinstance(response, IssueOut):
+            msg = f"Failed to get issue {issue_id}"
+            raise IssueListError(msg)
+
         return _to_issue(response)
 
     def create_issue(self, board: str, title: str, body: str) -> Issue:
@@ -84,12 +105,10 @@ class ServiceClientAdapter(IssueTrackerClient):
             response = create_issue_boards_board_issues_post.sync(
                 board=board, body=payload, client=self._client
             )
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPError as exc:
             msg = "Failed to create issue"
-            raise IssueCreateError(msg) from e
-        except Exception as e:
-            msg = "Failed to create issue"
-            raise IssueCreateError(msg) from e
+            raise IssueCreateError(msg) from exc
+
         if not isinstance(response, IssueOut):
             msg = "Failed to create issue"
             raise IssueCreateError(msg)
@@ -101,10 +120,19 @@ class ServiceClientAdapter(IssueTrackerClient):
             response = close_issue_boards_board_issues_issue_id_close_post.sync(
                 board=board, issue_id=issue_id, client=self._client
             )
-        except Exception:  # noqa: BLE001
-            return False
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == NOT_FOUND:
+                msg = f"Issue {issue_id} not found"
+                raise IssueNotFoundError(msg) from exc
+            msg = f"Failed to close issue {issue_id}"
+            raise IssueCloseError(msg) from exc
+        except httpx.HTTPError as exc:
+            msg = f"Failed to close issue {issue_id}"
+            raise IssueCloseError(msg) from exc
+
         if response is None:
-            return False
+            msg = f"Failed to close issue {issue_id}"
+            raise IssueCloseError(msg)
         return bool(response.additional_properties.get("success", False))
 
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
@@ -114,12 +142,16 @@ class ServiceClientAdapter(IssueTrackerClient):
             response = add_comment_boards_board_issues_issue_id_comments_post.sync(
                 board=board, issue_id=issue_id, body=payload, client=self._client
             )
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == NOT_FOUND:
+                msg = f"Issue {issue_id} not found"
+                raise IssueNotFoundError(msg) from exc
             msg = "Failed to add comment"
-            raise CommentAddError(msg) from e
-        except Exception as e:
+            raise CommentAddError(msg) from exc
+        except httpx.HTTPError as exc:
             msg = "Failed to add comment"
-            raise CommentAddError(msg) from e
+            raise CommentAddError(msg) from exc
+
         if not isinstance(response, CommentOut):
             msg = "Failed to add comment"
             raise CommentAddError(msg)

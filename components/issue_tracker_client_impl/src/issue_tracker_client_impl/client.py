@@ -4,6 +4,7 @@ import requests
 from issue_tracker_client_api.client import (
     Comment,
     Issue,
+    IssueCreateError,
     IssueNotFoundError,
     IssueState,
     IssueTrackerClient,
@@ -89,7 +90,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
         board_lists = lists_resp.json()
         if not board_lists:
             msg = f"Board {board} has no open lists"
-            raise ValueError(msg)
+            raise IssueCreateError(msg)
         target_list_id = board_lists[0]["id"]
 
         # Create the card
@@ -119,7 +120,7 @@ class DefaultIssueTrackerClient(IssueTrackerClient):
 
         Raises:
             requests.HTTPError: If the API request fails.
-            ValueError: If *issue_id* does not exist on *board*.
+            IssueNotFoundError: If *issue_id* does not exist on *board*.
 
         """
         card_id = self._resolve_card_id(board, issue_id)

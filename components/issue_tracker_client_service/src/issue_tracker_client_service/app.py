@@ -2,15 +2,23 @@
 
 import os
 import secrets
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request
+from fastapi import Cookie, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from issue_tracker_client_api.client import Issue
+from fastapi.responses import HTMLResponse, RedirectResponse
+from issue_tracker_client_api.client import (
+    CommentAddError,
+    Issue,
+    IssueCloseError,
+    IssueCreateError,
+    IssueListError,
+    IssueNotFoundError,
+)
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
-
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AddCommentIn,
@@ -23,10 +31,39 @@ from issue_tracker_client_service.schemas import (
 )
 from issue_tracker_client_service.session import get_session, save_session
 
+REQUIRED_ENV_VARS = (
+    "TRELLO_API_KEY",
+    "TRELLO_API_TOKEN",
+)
+
+
+def _require_env(var_name: str) -> str:
+    """Return a required environment variable or raise a startup error."""
+    value = os.getenv(var_name)
+    if not value:
+        msg = f"Missing required environment variable: {var_name}"
+        raise RuntimeError(msg)
+    return value
+
+
+def _validate_required_env() -> None:
+    """Fail fast at startup if required environment variables are missing."""
+    for var_name in REQUIRED_ENV_VARS:
+        _require_env(var_name)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Validate service configuration before accepting requests."""
+    _validate_required_env()
+    yield
+
+
 app = FastAPI(
     title="Issue Tracker Client Service",
     version="0.1.0",
     description="FastAPI service exposing the issue tracker client implementation.",
+    lifespan=lifespan,
 )
 
 _cors_origin = os.environ.get("ALLOWED_ORIGIN")
@@ -56,7 +93,7 @@ def get_client(
     session_id: str | None = Cookie(default=None),
 ) -> DefaultIssueTrackerClient:
     """Build a concrete client for the current request."""
-    api_key = os.environ["TRELLO_API_KEY"]
+    api_key = _require_env("TRELLO_API_KEY")
 
     if session_id is not None:
         session = get_session(session_id)
@@ -66,7 +103,7 @@ def get_client(
                 token=session.access_token,
             )
 
-    token = os.environ["TRELLO_API_TOKEN"]
+    token = _require_env("TRELLO_API_TOKEN")
     return DefaultIssueTrackerClient(api_key=api_key, token=token)
 
 
@@ -92,8 +129,6 @@ def auth_login() -> RedirectResponse:
         state = create_state()
         auth_url = build_authorization_url(state)
         return RedirectResponse(url=auth_url, status_code=302)
-    except KeyError:
-        raise
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -189,12 +224,15 @@ def list_issues(
     """List issues for a board."""
     try:
         return [_issue_to_out(issue) for issue in client.list_issues(board)]
-    except KeyError:
-        raise
-    except Exception as exc:
+    except IssueListError as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list issues for board '{board}'",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
         ) from exc
 
 
@@ -207,12 +245,20 @@ def get_issue(
     """Fetch a single issue by ID."""
     try:
         issue = client.get_issue(board, issue_id)
-    except KeyError:
-        raise
-    except Exception as exc:
+    except IssueNotFoundError as exc:
         raise HTTPException(
             status_code=404,
+            detail=f"Issue {issue_id} not found on board '{board}'",
+        ) from exc
+    except IssueListError as exc:
+        raise HTTPException(
+            status_code=500,
             detail=f"Failed to fetch issue {issue_id} from board '{board}'",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
         ) from exc
     else:
         return _issue_to_out(issue)
@@ -227,12 +273,15 @@ def create_issue(
     """Create a new issue in a board."""
     try:
         issue = client.create_issue(board, payload.title, payload.body)
-    except KeyError:
-        raise
-    except Exception as exc:
+    except IssueCreateError as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create issue in board '{board}'",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
         ) from exc
     else:
         return _issue_to_out(issue)
@@ -247,12 +296,20 @@ def close_issue(
     """Close an existing issue."""
     try:
         success = client.close_issue(board, issue_id)
-    except KeyError:
-        raise
-    except Exception as exc:
+    except IssueNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Issue {issue_id} not found on board '{board}'",
+        ) from exc
+    except IssueCloseError as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to close issue {issue_id} in board '{board}'",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
         ) from exc
     else:
         return {"success": success}
@@ -268,19 +325,20 @@ def add_comment(
     """Add a comment to an issue."""
     try:
         comment = client.add_comment(board, issue_id, payload.body)
-    except KeyError:
-        raise
-    except Exception as exc:
+    except IssueNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Issue {issue_id} not found on board '{board}'",
+        ) from exc
+    except CommentAddError as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to add comment to issue {issue_id} in board '{board}'",
         ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
+        ) from exc
     else:
         return CommentOut(id=comment.id, body=comment.body)
-
-
-@app.exception_handler(KeyError)
-def handle_missing_env(_: Request, exc: KeyError) -> JSONResponse:
-    """Return a readable error if a required environment variable is missing."""
-    detail = f"Missing required environment variable: {exc.args[0]}"
-    return JSONResponse(status_code=500, content={"detail": detail})
