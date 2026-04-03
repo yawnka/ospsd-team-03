@@ -18,6 +18,7 @@ pytestmark = pytest.mark.unit
 HTTP_OK = 200
 HTTP_FOUND = 302
 HTTP_BAD_REQUEST = 400
+HTTP_UNPROCESSABLE_ENTITY = 422
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 EXPECTED_ISSUE_COUNT = 2
@@ -103,10 +104,10 @@ def test_auth_token_saves_session() -> None:
     assert session.access_token == "trello-user-token"  # noqa: S105 — test credential
 
 
-def test_auth_token_missing_token_returns_400() -> None:
-    """Token endpoint without token returns 400."""
+def test_auth_token_missing_token_returns_422() -> None:
+    """Token endpoint without required token field returns 422 validation error."""
     response = client.post("/auth/token", json={})
-    assert response.status_code == HTTP_BAD_REQUEST
+    assert response.status_code == HTTP_UNPROCESSABLE_ENTITY
 
 
 # ---------------------------------------------------------------------------

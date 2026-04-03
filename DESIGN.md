@@ -168,26 +168,6 @@ def list_issues(self, board: str) -> list[Issue]:
 
 The `_to_issue()` helper translates the HTTP wire model (`IssueOut`) into the domain model (`Issue`). This translation layer is necessary because the ABC domain models and the HTTP wire models are intentionally separate packages — the interface (`issue_tracker_client_api`) must not depend on the generated client.
 
-### Token Handling and Server-Side Fallback
-
-`ServiceClientAdapter.__init__` reads the `ISSUE_TRACKER_TOKEN` environment variable and passes it as the Bearer token to `AuthenticatedClient`:
-
-```python
-self._client = AuthenticatedClient(
-    base_url=base_url,
-    token=os.environ.get("ISSUE_TRACKER_TOKEN", ""),
-)
-```
-
-If `ISSUE_TRACKER_TOKEN` is not set, an empty string is used. The generated client sends this value in the `Authorization` header on every request.
-
-On the service side, the `get_client` dependency checks for a valid `session_id` cookie first. When the cookie is absent or the session is not found (which is the typical case when the adapter sends an empty or non-session token), the service falls back to the `TRELLO_API_TOKEN` environment variable configured on the server. This means:
-
-- **`ISSUE_TRACKER_TOKEN` set** — the value is forwarded to the service as a Bearer token. This is useful when the service is configured to accept direct token authentication.
-- **`ISSUE_TRACKER_TOKEN` not set (empty string)** — no valid session is presented; the service transparently falls back to its own `TRELLO_API_TOKEN` env var. CI pipelines and direct service tests rely on this fallback without requiring a browser-based OAuth flow.
-
-This two-level design keeps the adapter stateless with respect to Trello credentials — it never stores a Trello token itself — while allowing the service to centralize credential management.
-
 ### DI Auto-Registration
 
 `__init__.py` registers the adapter factory at import time, identical to the pattern used by `issue_tracker_client_impl`:
