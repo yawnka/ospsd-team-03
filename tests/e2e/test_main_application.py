@@ -436,6 +436,60 @@ def test_service_add_comment_endpoint() -> None:
     assert resp.json()["body"] == "E2E comment"
 
 
+def test_adapter_full_workflow_through_service() -> None:
+    """E2E: adapter → generated client → HTTP → service → fake Trello.
+
+    Exercises the complete application stack without requiring real Trello
+    credentials: the adapter constructs domain objects from service responses,
+    proving location transparency works end-to-end.
+    """
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
+        ServiceClientAdapter,
+    )
+    from issue_tracker_client_api.client import (  # noqa: PLC0415
+        Comment,
+        Issue,
+        IssueState,
+    )
+    from issue_tracker_client_service.app import app  # noqa: PLC0415
+
+    from issue_tracker_client_service import app as app_module  # noqa: PLC0415
+
+    with (
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=_FakeClientForE2E(),
+        ),
+        patch.dict("os.environ", _FAKE_SERVICE_ENV),
+    ):
+        adapter = ServiceClientAdapter(base_url="http://testserver")
+        http_client = TestClient(app, base_url="http://testserver")
+        adapter._client.set_httpx_client(http_client)
+
+        # Full workflow: list → get → create → comment → close
+        issues = adapter.list_issues("my-board")
+        assert len(issues) == 1
+        assert isinstance(issues[0], Issue)
+        assert issues[0].state == IssueState.OPEN
+
+        issue = adapter.get_issue("my-board", 1)
+        assert isinstance(issue, Issue)
+        assert issue.title == "E2E Issue"
+
+        created = adapter.create_issue("my-board", "E2E New", "E2E Body")
+        assert isinstance(created, Issue)
+        assert created.title == "E2E New"
+
+        comment = adapter.add_comment("my-board", 1, "E2E comment")
+        assert isinstance(comment, Comment)
+        assert comment.body == "E2E comment"
+
+        closed = adapter.close_issue("my-board", 1)
+        assert closed is True
+
+
 def test_service_missing_env_returns_500() -> None:
     """Requests fail with 500 when required env vars are missing."""
     from fastapi.testclient import TestClient  # noqa: PLC0415

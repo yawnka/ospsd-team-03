@@ -193,6 +193,7 @@ def test_adapter_through_service_get_issue() -> None:
     assert domain.state == IssueState.OPEN
 
     adapter = ServiceClientAdapter.__new__(ServiceClientAdapter)
+    adapter._session_id = None
     with patch(
         "issue_tracker_client_adapter.adapter"
         ".get_issue_boards_board_issues_issue_id_get.sync",
@@ -216,6 +217,7 @@ def test_adapter_through_service_create_and_comment() -> None:
 
     adapter = ServiceClientAdapter.__new__(ServiceClientAdapter)
     adapter._client = MagicMock()
+    adapter._session_id = None
 
     fake_response = IssueOut(
         id=EXPECTED_CREATE_ID, title="New", body="desc", state="open"
@@ -287,3 +289,150 @@ def test_adapter_full_round_trip_through_service() -> None:
         resp = http.post("/boards/b/issues/1/comments", json={"body": "hi"})
         assert resp.status_code == HTTP_OK
         assert resp.json()["body"] == "hi"
+
+
+def test_adapter_through_generated_client_over_http() -> None:
+    """Adapter → generated client → real HTTP → service → fake Trello → domain models.
+
+    This verifies the full adapter integration path: the adapter uses the
+    auto-generated client which makes real HTTP calls to the FastAPI service,
+    which delegates to a fake Trello client.
+    """
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
+        ServiceClientAdapter,
+    )
+    from issue_tracker_client_api.client import (  # noqa: PLC0415
+        Comment,
+        Issue,
+        IssueState,
+    )
+    from issue_tracker_client_service.app import app  # noqa: PLC0415
+
+    from issue_tracker_client_service import app as app_module  # noqa: PLC0415
+
+    with (
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=_FakeClient(),
+        ),
+        patch.dict(
+            "os.environ",
+            {"TRELLO_API_KEY": "k", "TRELLO_API_TOKEN": "t"},
+        ),
+    ):
+        adapter = ServiceClientAdapter(base_url="http://testserver")
+        # Inject TestClient (httpx.Client subclass) as the HTTP transport
+        # so generated-client requests reach the in-process ASGI app.
+        http_client = TestClient(app, base_url="http://testserver")
+        adapter._client.set_httpx_client(http_client)
+
+        # 1. list_issues
+        issues = adapter.list_issues("board")
+        assert len(issues) == 1
+        assert isinstance(issues[0], Issue)
+        assert issues[0].state == IssueState.OPEN
+        assert issues[0].title == "Test Issue"
+
+        # 2. get_issue
+        issue = adapter.get_issue("board", EXPECTED_ISSUE_ID)
+        assert isinstance(issue, Issue)
+        assert issue.id == EXPECTED_ISSUE_ID
+        assert issue.title == "Test Issue"
+
+        # 3. create_issue
+        created = adapter.create_issue("board", "New Title", "New Body")
+        assert isinstance(created, Issue)
+        assert created.title == "New Title"
+
+        # 4. close_issue
+        closed = adapter.close_issue("board", EXPECTED_ISSUE_ID)
+        assert closed is True
+
+        # 5. add_comment
+        comment = adapter.add_comment("board", EXPECTED_ISSUE_ID, "hello")
+        assert isinstance(comment, Comment)
+        assert comment.body == "hello"
+
+
+def test_adapter_session_id_forwarded_to_service() -> None:
+    """Adapter with session_id uses the session's token instead of env fallback.
+
+    Verifies the full auth path: adapter passes session_id as a per-request
+    cookie → service looks up the session → uses the session's access_token
+    to build the Trello client.
+    """
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
+        ServiceClientAdapter,
+    )
+    from issue_tracker_client_api.client import Issue  # noqa: PLC0415
+    from issue_tracker_client_service.app import app  # noqa: PLC0415
+    from issue_tracker_client_service.session import save_session  # noqa: PLC0415
+
+    from issue_tracker_client_service import app as app_module  # noqa: PLC0415
+
+    # 1. Pre-populate a session in the service's in-memory store
+    test_session_id = "integration-test-session"
+    save_session(
+        test_session_id,
+        access_token="session-token-from-oauth",  # noqa: S106 — test credential
+        refresh_token=None,
+        expires_at=None,
+    )
+
+    # 2. Patch DefaultIssueTrackerClient so we can verify which token was used
+    captured_tokens: list[str] = []
+    real_fake = _FakeClient()
+
+    class _CapturingClient(_FakeClient):
+        def __init__(self, *, api_key: str, token: str) -> None:  # noqa: ARG002 — matches real signature
+            captured_tokens.append(token)
+
+        def list_issues(self, board: str) -> list[_FakeIssue]:
+            return real_fake.list_issues(board)
+
+    with (
+        patch.object(app_module, "DefaultIssueTrackerClient", _CapturingClient),
+        patch.dict(
+            "os.environ",
+            {"TRELLO_API_KEY": "k", "TRELLO_API_TOKEN": "env-fallback-token"},
+        ),
+    ):
+        # 3. Create adapter WITH session_id
+        adapter = ServiceClientAdapter(
+            base_url="http://testserver",
+            session_id=test_session_id,
+        )
+        http_client = TestClient(app, base_url="http://testserver")
+        adapter._client.set_httpx_client(http_client)
+
+        issues = adapter.list_issues("board")
+        assert isinstance(issues[0], Issue)
+
+    # 4. Verify the service used the session token, not the env fallback
+    assert "session-token-from-oauth" in captured_tokens
+    assert "env-fallback-token" not in captured_tokens
+
+
+def test_adapter_di_factory_reads_session_id_env() -> None:
+    """DI factory passes ISSUE_TRACKER_SESSION_ID to the adapter."""
+    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
+        ServiceClientAdapter,
+    )
+
+    _api._factories.clear()
+    sys.modules.pop("issue_tracker_client_adapter", None)
+
+    env = {
+        "ISSUE_TRACKER_SERVICE_URL": "http://localhost:8000",
+        "ISSUE_TRACKER_SESSION_ID": "my-session",
+    }
+    with patch.dict("os.environ", env):
+        import issue_tracker_client_adapter  # noqa: PLC0415, F401
+
+        client = _api.get_client()
+
+    assert isinstance(client, ServiceClientAdapter)
+    assert client._session_id == "my-session"

@@ -18,7 +18,7 @@ dev = [
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 src = ["components"]
-exclude = ["components/issue_tracker_client_service_client"]
+exclude = ["components/issue_tracker_client_service_client/src"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -60,7 +60,7 @@ strict = true
 exclude = [
   "^tests/",
   "^components/.*/tests/",
-  "^components/issue_tracker_client_service_client/",
+  "^components/issue_tracker_client_service_client/src/",
 ]
 
 # ── Pytest ───────────────────────────────────────────────────────────────────
@@ -73,12 +73,17 @@ markers = [
     "e2e: marks tests as end-to-end tests (slow, full system)",
     "local_credentials: marks tests that require real API credentials (skipped in CI)",
 ]
+# Starlette TestClient warns about per-request cookies set by the auto-generated
+# client's _get_kwargs(); this is harmless in tests and does not affect production.
+filterwarnings = [
+    "ignore:Setting per-request cookies:DeprecationWarning:starlette",
+]
 
 # ── Coverage ─────────────────────────────────────────────────────────────────
 [tool.coverage.run]
 source = ["components"]
 branch = true
-omit = ["components/issue_tracker_client_service_client/*"]
+omit = ["components/issue_tracker_client_service_client/src/*"]
 
 [tool.coverage.report]
 show_missing = true
