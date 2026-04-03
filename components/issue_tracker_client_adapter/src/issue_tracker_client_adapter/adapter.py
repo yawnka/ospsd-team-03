@@ -1,7 +1,5 @@
 """Service client adapter implementing the IssueTrackerClient interface."""
 
-import os
-
 import httpx
 from issue_tracker_client_api.client import (
     Comment,
@@ -21,7 +19,7 @@ from issue_tracker_client_service_client.api.default import (
     get_issue_boards_board_issues_issue_id_get,
     list_issues_boards_board_issues_get,
 )
-from issue_tracker_client_service_client.client import AuthenticatedClient
+from issue_tracker_client_service_client.client import Client
 from issue_tracker_client_service_client.models import (
     AddCommentIn,
     CommentOut,
@@ -47,10 +45,8 @@ class ServiceClientAdapter(IssueTrackerClient):
 
     def __init__(self, base_url: str) -> None:
         """Initialize the adapter with the base URL of the remote service."""
-        self._client = AuthenticatedClient(
-            base_url=base_url,
-            token=os.environ.get("ISSUE_TRACKER_TOKEN", ""),
-        )
+        self.base_url = base_url
+        self._client = Client(base_url=base_url)
 
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for the given board."""

@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from issue_tracker_client_api.client import (
@@ -19,6 +19,7 @@ from issue_tracker_client_api.client import (
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
+
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AddCommentIn,
@@ -41,8 +42,10 @@ def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
     value = os.getenv(var_name)
     if not value:
-        msg = f"Missing required environment variable: {var_name}"
-        raise RuntimeError(msg)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Missing required environment variable: {var_name}",
+        )
     return value
 
 
@@ -200,7 +203,7 @@ def auth_callback(
 
 
 @app.post("/auth/token")
-def auth_token(request_body: TokenIn) -> AuthStatusOut:
+def auth_token(request_body: TokenIn, response: Response) -> AuthStatusOut:
     """Receive the Trello token posted by the callback page's JS bridge.
 
     This endpoint is called automatically by the JavaScript returned from
@@ -212,6 +215,18 @@ def auth_token(request_body: TokenIn) -> AuthStatusOut:
         access_token=request_body.token,
         refresh_token=None,
         expires_at=None,
+    )
+    # Set Secure=True only in production (HTTPS). Browsers will not send Secure cookies
+    # over HTTP, so this must be False for local development (e.g., localhost).
+    secure = os.getenv("ENV") == "production"
+
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        path="/",
     )
     return AuthStatusOut(status="authenticated", session_id=session_id)
 
@@ -228,11 +243,6 @@ def list_issues(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list issues for board '{board}'",
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error",
         ) from exc
 
 
@@ -255,11 +265,6 @@ def get_issue(
             status_code=500,
             detail=f"Failed to fetch issue {issue_id} from board '{board}'",
         ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error",
-        ) from exc
     else:
         return _issue_to_out(issue)
 
@@ -277,11 +282,6 @@ def create_issue(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create issue in board '{board}'",
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error",
         ) from exc
     else:
         return _issue_to_out(issue)
@@ -306,11 +306,6 @@ def close_issue(
             status_code=500,
             detail=f"Failed to close issue {issue_id} in board '{board}'",
         ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error",
-        ) from exc
     else:
         return {"success": success}
 
@@ -334,11 +329,6 @@ def add_comment(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to add comment to issue {issue_id} in board '{board}'",
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error",
         ) from exc
     else:
         return CommentOut(id=comment.id, body=comment.body)
