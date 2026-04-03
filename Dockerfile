@@ -19,7 +19,7 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-RUN groupadd --system app && useradd --system --gid app app
+RUN groupadd --system app && useradd --system --gid app --create-home app
 
 WORKDIR /app
 
@@ -28,6 +28,8 @@ COPY --from=builder /app /app
 RUN chown -R app:app /app
 
 USER app
+
+ENV UV_CACHE_DIR=/home/app/.cache/uv
 
 EXPOSE 8000
 
