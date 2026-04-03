@@ -2,6 +2,7 @@
 
 import os
 
+import httpx
 from issue_tracker_client_api.client import (
     Comment,
     CommentAddError,
@@ -49,18 +50,28 @@ class ServiceClientAdapter(IssueTrackerClient):
 
     def list_issues(self, board: str) -> list[Issue]:
         """Return all open issues for the given board."""
-        response = list_issues_boards_board_issues_get.sync(
-            board=board, client=self._client
-        )
+        try:
+            response = list_issues_boards_board_issues_get.sync(
+                board=board, client=self._client
+            )
+        except Exception:  # noqa: BLE001
+            return []
         if not isinstance(response, list):
             return []
         return [_to_issue(i) for i in response]
 
     def get_issue(self, board: str, issue_id: int) -> Issue:
         """Return the issue identified by issue_id on board."""
-        response = get_issue_boards_board_issues_issue_id_get.sync(
-            board=board, issue_id=issue_id, client=self._client
-        )
+        try:
+            response = get_issue_boards_board_issues_issue_id_get.sync(
+                board=board, issue_id=issue_id, client=self._client
+            )
+        except httpx.HTTPStatusError as e:
+            msg = f"Issue {issue_id} not found"
+            raise IssueNotFoundError(msg) from e
+        except Exception as e:
+            msg = f"Issue {issue_id} not found"
+            raise IssueNotFoundError(msg) from e
         if not isinstance(response, IssueOut):
             msg = f"Issue {issue_id} not found"
             raise IssueNotFoundError(msg)
@@ -69,9 +80,16 @@ class ServiceClientAdapter(IssueTrackerClient):
     def create_issue(self, board: str, title: str, body: str) -> Issue:
         """Open a new issue on board and return the created record."""
         payload = CreateIssueIn(title=title, body=body)
-        response = create_issue_boards_board_issues_post.sync(
-            board=board, body=payload, client=self._client
-        )
+        try:
+            response = create_issue_boards_board_issues_post.sync(
+                board=board, body=payload, client=self._client
+            )
+        except httpx.HTTPStatusError as e:
+            msg = "Failed to create issue"
+            raise IssueCreateError(msg) from e
+        except Exception as e:
+            msg = "Failed to create issue"
+            raise IssueCreateError(msg) from e
         if not isinstance(response, IssueOut):
             msg = "Failed to create issue"
             raise IssueCreateError(msg)
@@ -79,9 +97,12 @@ class ServiceClientAdapter(IssueTrackerClient):
 
     def close_issue(self, board: str, issue_id: int) -> bool:
         """Close the issue identified by issue_id on board."""
-        response = close_issue_boards_board_issues_issue_id_close_post.sync(
-            board=board, issue_id=issue_id, client=self._client
-        )
+        try:
+            response = close_issue_boards_board_issues_issue_id_close_post.sync(
+                board=board, issue_id=issue_id, client=self._client
+            )
+        except Exception:  # noqa: BLE001
+            return False
         if response is None:
             return False
         return bool(response.additional_properties.get("success", False))
@@ -89,9 +110,16 @@ class ServiceClientAdapter(IssueTrackerClient):
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:
         """Post a comment on issue_id on board and return the created record."""
         payload = AddCommentIn(body=body)
-        response = add_comment_boards_board_issues_issue_id_comments_post.sync(
-            board=board, issue_id=issue_id, body=payload, client=self._client
-        )
+        try:
+            response = add_comment_boards_board_issues_issue_id_comments_post.sync(
+                board=board, issue_id=issue_id, body=payload, client=self._client
+            )
+        except httpx.HTTPStatusError as e:
+            msg = "Failed to add comment"
+            raise CommentAddError(msg) from e
+        except Exception as e:
+            msg = "Failed to add comment"
+            raise CommentAddError(msg) from e
         if not isinstance(response, CommentOut):
             msg = "Failed to add comment"
             raise CommentAddError(msg)
