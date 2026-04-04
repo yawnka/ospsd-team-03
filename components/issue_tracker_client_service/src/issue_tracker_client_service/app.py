@@ -132,7 +132,16 @@ def auth_login() -> RedirectResponse:
         state = create_state()
         auth_url = build_authorization_url(state)
         return RedirectResponse(url=auth_url, status_code=302)
+
+    except ValueError as exc:
+        # Expected error: invalid state generation or malformed URL
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid authorization request",
+        ) from exc
+
     except Exception as exc:
+        # Unexpected failure (e.g., env/config issue)
         raise HTTPException(
             status_code=500,
             detail="Failed to start authorization flow",

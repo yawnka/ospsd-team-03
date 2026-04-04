@@ -61,7 +61,8 @@ class ServiceClientAdapter(IssueTrackerClient):
             raise IssueListError(msg) from exc
 
         if not isinstance(response, list):
-            return []
+            msg = f"Invalid response when listing issues for board {board}"
+            raise IssueListError(msg)
 
         return [_to_issue(issue) for issue in response]
 
@@ -133,7 +134,8 @@ class ServiceClientAdapter(IssueTrackerClient):
             raise IssueCloseError(msg) from exc
 
         if response is None:
-            return False
+            msg = f"Failed to close issue {issue_id}"
+            raise IssueCloseError(msg)
         return bool(response.additional_properties.get("success", False))
 
     def add_comment(self, board: str, issue_id: int, body: str) -> Comment:

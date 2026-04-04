@@ -2,20 +2,16 @@
 A client library for accessing Issue Tracker Client Service
 
 ## Usage
-First, create a client:
+The generated client provides a type-safe interface for calling the service.
+
+In this project, authentication is handled via a session cookie (`session_id`), not via bearer tokens or `Authorization` headers.
+
+The adapter layer is responsible for configuring the client so authenticated requests include this cookie. Consumers of the client should not manually manage authentication.
 
 ```python
 from issue_tracker_client_service_client import Client
 
 client = Client(base_url="https://api.example.com")
-```
-
-If the endpoints you're going to hit require authentication, use `AuthenticatedClient` instead:
-
-```python
-from issue_tracker_client_service_client import AuthenticatedClient
-
-client = AuthenticatedClient(base_url="https://api.example.com", token="SuperSecretToken")
 ```
 
 Now call your endpoint and use your models:
@@ -46,9 +42,8 @@ async with client as client:
 By default, when you're calling an HTTPS API it will attempt to verify that SSL is working correctly. Using certificate verification is highly recommended most of the time, but sometimes you may need to authenticate to a server (especially an internal server) using a custom certificate bundle.
 
 ```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken",
+client = Client(
+    base_url="https://internal_api.example.com",
     verify_ssl="/path/to/certificate_bundle.pem",
 )
 ```
@@ -56,9 +51,8 @@ client = AuthenticatedClient(
 You can also disable certificate validation altogether, but beware that **this is a security risk**.
 
 ```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken", 
+client = Client(
+    base_url="https://internal_api.example.com",
     verify_ssl=False
 )
 ```

@@ -35,26 +35,34 @@ ClientDependency = Annotated[DefaultIssueTrackerClient, Depends(get_client)]
 The client is created using:
 
 1. Session cookie (preferred)  
-   Uses stored Trello access token if `session_id` is present.
+    Uses the `session_id` cookie to retrieve the user's stored Trello access token.
 
 2. Environment variables (fallback)  
    Uses Trello API credentials for local/testing usage.
 
 ### Authentication
 
+The service uses a session-based authentication flow.
+
 Endpoints:
 - `GET /auth/login`
 - `GET /auth/callback`
+- `POST /auth/token`
 
 Flow:
-1. User hits /auth/login
+1. User hits `/auth/login`
 2. Service redirects to Trello authorization page
 3. User authorizes the app
-4. Trello redirects to /auth/callback with token in URL fragment
-5. Callback page extracts token from URL fragment and POSTs to /auth/token
-6. Service creates session
-7. Session stored in memory
-8. `Cookie (session_id)` returned to user
+4. Trello redirects to `/auth/callback` with the token in the URL fragment
+5. A browser bridge extracts the token and sends it to `/auth/token`
+6. The service:
+   - creates a session
+   - stores the Trello access token in memory
+   - sets an HTTP-only `session_id` cookie
+
+All future requests are authenticated via this cookie. The browser automatically includes it on every request.
+
+No bearer tokens or `Authorization` headers are used.
 
 ### Session Model
 ```python
@@ -84,6 +92,7 @@ export TRELLO_API_TOKEN="your_api_token"
 ### Auth
 - `GET /auth/login`
 - `GET /auth/callback`
+- `POST /auth/token`
 
 ### Issues
 - `GET /boards/{board}/issues`

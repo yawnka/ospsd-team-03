@@ -73,17 +73,27 @@ The implementation works around this with a JavaScript bridge:
 2. The user grants access on the Trello site.
 3. Trello redirects to `GET /auth/callback?state=<value>#token=<value>`. The `state` query parameter arrives at the server; the `token` in the fragment does not.
 4. The callback endpoint validates and consumes the state nonce, then returns an HTML page with inline JavaScript. The script reads `window.location.hash`, extracts the token, and POSTs it to `POST /auth/token`.
-5. `POST /auth/token` creates a `UserSession`, stores it in `_SESSIONS`, generates a `session_id` with `secrets.token_urlsafe(32)`, and returns it in the JSON response body (`{"status": "authenticated", "session_id": "..."}`). No `Set-Cookie` header is set by the server.
-6. The caller is responsible for storing the `session_id` and sending it as a cookie on subsequent requests. The `get_client` FastAPI dependency reads the `session_id` cookie to look up the user's Trello token.
+5. `POST /auth/token` creates a `UserSession`, stores it in `_SESSIONS`, generates a `session_id` with `secrets.token_urlsafe(32)`, and sets an HTTP-only cookie on the response:
+
+   `Set-Cookie: session_id=...; HttpOnly; SameSite=Lax`
+
+   The response also includes the `session_id` in the JSON body (`{"status": "authenticated", "session_id": "..."}`), but the cookie is the primary authentication mechanism.
+
+6. The browser automatically stores the cookie and includes it on subsequent requests. The `get_client` FastAPI dependency reads the `session_id` cookie to look up the user's Trello token.
+
+The cookie uses `Secure=True` in production so it is only sent over HTTPS, and `Secure=False` in local development so authentication still works over `http://localhost`.
 
 This deviation from the standard OAuth 2.0 flow was approved by the professor because Trello does not support the OAuth 2.0 authorization code grant.
 
 ### Request Authentication
 
-Two authentication modes are supported simultaneously:
+The primary authentication mechanism is session-based:
 
-- **Session-based**: `session_id` cookie → `get_session()` → per-user Trello token. Used when a user has completed the authorization flow.
-- **Environment fallback**: `TRELLO_API_TOKEN` env var used when no valid session cookie is present. Used in CI and for direct service testing without a browser.
+- **Session-based**: `session_id` cookie → `get_session()` → per-user Trello token
+
+This is the intended authentication flow for normal service usage.
+
+A fallback using `TRELLO_API_TOKEN` and `TRELLO_API_KEY` exists for CI and non-browser testing, but it is secondary to the cookie-based session flow.
 
 ### REST Endpoints
 
@@ -93,7 +103,7 @@ Two authentication modes are supported simultaneously:
 | `GET` | `/health` | Returns `{"status": "ok"}` — used for deployment health checks |
 | `GET` | `/auth/login` | Redirects to Trello authorization page |
 | `GET` | `/auth/callback` | Validates state nonce; serves JS bridge page |
-| `POST` | `/auth/token` | Receives token from JS bridge; returns `session_id` |
+| `POST` | `/auth/token` | Receives token from JS bridge; creates a session; sets the `session_id` cookie |
 | `GET` | `/boards/{board}/issues` | List all issues for a board |
 | `GET` | `/boards/{board}/issues/{issue_id}` | Get a single issue |
 | `POST` | `/boards/{board}/issues` | Create a new issue |
@@ -138,7 +148,7 @@ Because the OpenAPI spec is derived from the same Pydantic schemas used in the s
 |------|----------|
 | `api/default/` | One module per endpoint; each exposes `sync`, `sync_detailed`, `asyncio`, `asyncio_detailed` variants |
 | `models/` | `attrs`-based models mirroring the service's `schemas.py` |
-| `client.py` | `Client` and `AuthenticatedClient` wrapping `httpx` |
+| `client.py` | Generated client helpers wrapping `httpx`; the adapter uses `Client` with cookie-based session auth |
 
 ### Why Excluded from Ruff and Mypy
 
@@ -158,7 +168,7 @@ Make the remote service indistinguishable from the local implementation from the
 
 ### The Adapter Pattern
 
-`ServiceClientAdapter` implements the `IssueTrackerClient` ABC. Its constructor takes the `base_url` of the deployed service and creates an `AuthenticatedClient`. Each ABC method delegates to the corresponding generated endpoint module:
+`ServiceClientAdapter` implements the `IssueTrackerClient` ABC. Its constructor takes the `base_url` of the deployed service and creates a generated `Client`. Authentication is handled with the `session_id` cookie rather than bearer tokens or `Authorization` headers. Each ABC method delegates to the corresponding generated endpoint module:
 
 ```python
 def list_issues(self, board: str) -> list[Issue]:
@@ -167,6 +177,8 @@ def list_issues(self, board: str) -> list[Issue]:
 ```
 
 The `_to_issue()` helper translates the HTTP wire model (`IssueOut`) into the domain model (`Issue`). This translation layer is necessary because the ABC domain models and the HTTP wire models are intentionally separate packages — the interface (`issue_tracker_client_api`) must not depend on the generated client.
+
+The adapter is responsible for configuring the generated client so authenticated requests include the `session_id` cookie, allowing the service to resolve the user session.
 
 ### DI Auto-Registration
 
@@ -227,5 +239,5 @@ See [Testing Strategy](testing.md) for the full guide. HW2-specific additions:
 - **Service unit tests** (`components/issue_tracker_client_service/tests/test_service.py`): Use FastAPI's `TestClient`. `DefaultIssueTrackerClient` is patched via `patch.object` to avoid real Trello calls.
 - **Adapter unit tests** (`components/issue_tracker_client_adapter/tests/test_adapter.py`): Generated endpoint modules are patched to verify that each ABC method delegates correctly without making real HTTP calls. Also verifies that importing the package registers the DI factory.
 - **Integration tests** (`tests/integration/test_client_integration.py`): Verify that importing `issue_tracker_client_impl` correctly wires the DI registry and that `get_client()` returns a `DefaultIssueTrackerClient`.
-- **E2E tests** (`tests/e2e/test_main_application.py`): Exercise `issue_tracker_client_impl` directly against the real Trello API. The service, adapter, and generated client are not exercised in the E2E suite.
+- **E2E tests** (`tests/e2e/test_main_application.py`): Exercise user-visible behavior through the client interface. Service and adapter behavior is additionally covered through HTTP-path integration tests.
 - **OAuth flow**: Requires a browser interaction and cannot be fully automated in CI. Tests focus on the post-token logic (session creation, client instantiation). The auth flow is validated manually.

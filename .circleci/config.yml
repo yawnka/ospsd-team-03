@@ -41,8 +41,8 @@ jobs:
             # Use system Python to ensure venv symlinks survive persist_to_workspace
             uv venv --python $(which python3.12)
             source .venv/bin/activate
-            # Install all workspace packages and dev dependency group (PEP 735)
-            uv sync --all-packages --group dev --verbose
+            # Install all workspace packages and dev dependencies using optional extras (PEP 621)
+            uv sync --all-packages --extra dev --verbose
       - run:
           name: "Verify Installation"
           command: |

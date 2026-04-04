@@ -7,16 +7,29 @@ the returned instance satisfies the abstract interface.
 
 import sys
 from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import issue_tracker_client_api.client as _api
 import pytest
-from issue_tracker_client_api.client import IssueTrackerClient
+from issue_tracker_client_api.client import (
+    Issue,
+    IssueCreateError,
+    IssueListError,
+    IssueNotFoundError,
+    IssueTrackerClient,
+)
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
 pytestmark = pytest.mark.integration
 
 HTTP_OK = 200
+HTTP_NOT_FOUND = 404
+
+EXPECTED_ISSUE_ID = 1
+EXPECTED_COMMENT_ID = 10
+EXPECTED_CREATE_ID = 5
+EXPECTED_ADD_COMMENT_ID = 42
+
 
 
 @pytest.fixture(autouse=True)
@@ -92,51 +105,165 @@ def test_concrete_client_exposes_interface_methods() -> None:
 # Adapter-through-service integration tests
 # ---------------------------------------------------------------------------
 
-EXPECTED_ISSUE_ID = 1
-EXPECTED_COMMENT_ID = 10
-EXPECTED_CREATE_ID = 5
-EXPECTED_ADD_COMMENT_ID = 42
-
-
 class _FakeIssueState:
     value = "open"
 
 
 class _FakeIssue:
-    id = EXPECTED_ISSUE_ID
-    title = "Test Issue"
-    body = "Test body"
-    state = _FakeIssueState()
+    def __init__(
+        self,
+        issue_id: int = EXPECTED_ISSUE_ID,
+        title: str = "Test Issue",
+        body: str = "Test body",
+    ) -> None:
+        self.id = issue_id
+        self.title = title
+        self.body = body
+        self.state = _FakeIssueState()
 
 
 class _FakeComment:
-    id = EXPECTED_COMMENT_ID
-    body = "Test comment"
+    def __init__(
+        self,
+        comment_id: int = EXPECTED_COMMENT_ID,
+        body: str = "Test comment",
+    ) -> None:
+        self.id = comment_id
+        self.body = body
 
 
 class _FakeClient:
     """In-memory fake that replaces the Trello client inside the service."""
 
+    def __init__(self, *, api_key: str, token: str) -> None:
+        pass
+
     def list_issues(self, _board: str) -> list[_FakeIssue]:
         return [_FakeIssue()]
 
     def get_issue(self, _board: str, _issue_id: int) -> _FakeIssue:
-        return _FakeIssue()
+        return _FakeIssue(issue_id=_issue_id)
 
     def create_issue(self, _board: str, title: str, body: str) -> _FakeIssue:
-        issue = _FakeIssue()
-        issue.title = title
-        issue.body = body
-        return issue
+        return _FakeIssue(
+            issue_id=EXPECTED_CREATE_ID,
+            title=title,
+            body=body,
+        )
 
     def close_issue(self, _board: str, _issue_id: int) -> bool:
         return True
 
     def add_comment(self, _board: str, _issue_id: int, body: str) -> _FakeComment:
-        comment = _FakeComment()
-        comment.body = body
-        return comment
+        return _FakeComment(comment_id=EXPECTED_ADD_COMMENT_ID, body=body)
 
+class _NotFoundFakeClient:
+    """Fake impl that raises a domain not-found error."""
+
+    def __init__(self, *, api_key: str, token: str) -> None:
+        pass
+
+    def list_issues(self, _board: str) -> list[_FakeIssue]:
+        return [_FakeIssue()]
+
+    def get_issue(self, _board: str, _issue_id: int) -> _FakeIssue:
+        msg = "Issue not found"
+        raise IssueNotFoundError(msg)
+
+    def create_issue(self, _board: str, title: str, body: str) -> _FakeIssue:
+        return _FakeIssue(
+            issue_id=EXPECTED_CREATE_ID,
+            title=title,
+            body=body,
+        )
+
+    def close_issue(self, _board: str, _issue_id: int) -> bool:
+        return True
+
+    def add_comment(self, _board: str, _issue_id: int, body: str) -> _FakeComment:
+        return _FakeComment(comment_id=EXPECTED_ADD_COMMENT_ID, body=body)
+
+class _CreateErrorFakeClient:
+    """Fake impl that raises a domain create error."""
+
+    def __init__(self, *, api_key: str, token: str) -> None:
+        pass
+
+    def list_issues(self, _board: str) -> list[_FakeIssue]:
+        return [_FakeIssue()]
+
+    def get_issue(self, _board: str, issue_id: int) -> _FakeIssue:
+        return _FakeIssue(issue_id=issue_id)
+
+    def create_issue(self, _board: str, _title: str, _body: str) -> _FakeIssue:
+        msg = "Could not create issue"
+        raise IssueCreateError(msg)
+
+    def close_issue(self, _board: str, _issue_id: int) -> bool:
+        return True
+
+    def add_comment(self, _board: str, _issue_id: int, body: str) -> _FakeComment:
+        return _FakeComment(comment_id=EXPECTED_ADD_COMMENT_ID, body=body)
+
+
+class _ListErrorFakeClient:
+    """Fake impl that raises a domain list error."""
+
+    def __init__(self, *, api_key: str, token: str) -> None:
+        pass
+
+    def list_issues(self, _board: str) -> list[_FakeIssue]:
+        msg = "Could not list issues"
+        raise IssueListError(msg)
+
+    def get_issue(self, _board: str, issue_id: int) -> _FakeIssue:
+        return _FakeIssue(issue_id=issue_id)
+
+    def create_issue(self, _board: str, title: str, body: str) -> _FakeIssue:
+        return _FakeIssue(
+            issue_id=EXPECTED_CREATE_ID,
+            title=title,
+            body=body,
+        )
+
+    def close_issue(self, _board: str, _issue_id: int) -> bool:
+        return True
+
+    def add_comment(self, _board: str, _issue_id: int, body: str) -> _FakeComment:
+        return _FakeComment(comment_id=EXPECTED_ADD_COMMENT_ID, body=body)
+
+
+def _build_http_adapter(
+    *,
+    fake_impl_cls: type[object],
+    session_id: str | None = None,
+) -> tuple[object, object, object]:
+    """Create a real adapter whose generated client talks to the in-process app."""
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
+        ServiceClientAdapter,
+    )
+    from issue_tracker_client_service.app import app  # noqa: PLC0415
+
+    from issue_tracker_client_service import app as app_module  # noqa: PLC0415
+
+    impl_patcher = patch.object(app_module, "DefaultIssueTrackerClient", fake_impl_cls)
+    env_patcher = patch.dict(
+        "os.environ",
+        {"TRELLO_API_KEY": "k", "TRELLO_API_TOKEN": "t"},
+    )
+
+    impl_patcher.start()
+    env_patcher.start()
+
+    adapter = ServiceClientAdapter(
+        base_url="http://testserver",
+        session_id=session_id,
+    )
+    http_client = TestClient(app, base_url="http://testserver")
+    adapter._client.set_httpx_client(http_client)
+
+    return adapter, impl_patcher, env_patcher
 
 def test_adapter_through_service_list_issues() -> None:
     """ServiceClientAdapter domain mapping works with real service responses."""
@@ -152,7 +279,7 @@ def test_adapter_through_service_list_issues() -> None:
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
-            return_value=_FakeClient(),
+            return_value=_FakeClient(api_key="k", token="t"), # noqa: S106 - test token
         ),
         patch.dict(
             "os.environ",
@@ -175,73 +302,39 @@ def test_adapter_through_service_list_issues() -> None:
 
 
 def test_adapter_through_service_get_issue() -> None:
-    """ServiceClientAdapter raises IssueNotFoundError for missing issues."""
-    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
-        ServiceClientAdapter,
-        _to_issue,
+    """Adapter over real HTTP translates service 404 into IssueNotFoundError."""
+    adapter, impl_patcher, env_patcher = _build_http_adapter(
+        fake_impl_cls=_NotFoundFakeClient,
     )
-    from issue_tracker_client_api.client import (  # noqa: PLC0415
-        Issue,
-        IssueNotFoundError,
-        IssueState,
-    )
-    from issue_tracker_client_service_client.models import IssueOut  # noqa: PLC0415
-
-    issue_out = IssueOut(id=1, title="Found", body="body", state="open")
-    domain = _to_issue(issue_out)
-    assert isinstance(domain, Issue)
-    assert domain.state == IssueState.OPEN
-
-    adapter = ServiceClientAdapter.__new__(ServiceClientAdapter)
-    adapter._session_id = None
-    with patch(
-        "issue_tracker_client_adapter.adapter"
-        ".get_issue_boards_board_issues_issue_id_get.sync",
-        return_value=None,
-    ):
-        adapter._client = MagicMock()
+    try:
         with pytest.raises(IssueNotFoundError):
             adapter.get_issue("board", 999)
+    finally:
+        impl_patcher.stop()
+        env_patcher.stop()
 
 
 def test_adapter_through_service_create_and_comment() -> None:
-    """ServiceClientAdapter correctly maps create_issue and add_comment responses."""
-    from issue_tracker_client_adapter.adapter import (  # noqa: PLC0415
-        ServiceClientAdapter,
-    )
-    from issue_tracker_client_api.client import Comment, Issue  # noqa: PLC0415
-    from issue_tracker_client_service_client.models import (  # noqa: PLC0415
-        CommentOut,
-        IssueOut,
-    )
+    """Adapter over real HTTP maps create_issue and add_comment responses."""
+    from issue_tracker_client_api.client import Comment  # noqa: PLC0415
 
-    adapter = ServiceClientAdapter.__new__(ServiceClientAdapter)
-    adapter._client = MagicMock()
-    adapter._session_id = None
-
-    fake_response = IssueOut(
-        id=EXPECTED_CREATE_ID, title="New", body="desc", state="open"
+    adapter, impl_patcher, env_patcher = _build_http_adapter(
+        fake_impl_cls=_FakeClient,
     )
-    with patch(
-        "issue_tracker_client_adapter.adapter"
-        ".create_issue_boards_board_issues_post.sync",
-        return_value=fake_response,
-    ):
+    try:
         issue_result = adapter.create_issue("board", "New", "desc")
-    assert isinstance(issue_result, Issue)
-    assert issue_result.id == EXPECTED_CREATE_ID
-    assert issue_result.title == "New"
+        assert isinstance(issue_result, Issue)
+        assert issue_result.id == EXPECTED_CREATE_ID
+        assert issue_result.title == "New"
+        assert issue_result.body == "desc"
 
-    fake_comment = CommentOut(id=EXPECTED_ADD_COMMENT_ID, body="hello")
-    with patch(
-        "issue_tracker_client_adapter.adapter"
-        ".add_comment_boards_board_issues_issue_id_comments_post.sync",
-        return_value=fake_comment,
-    ):
         comment_result = adapter.add_comment("board", 1, "hello")
-    assert isinstance(comment_result, Comment)
-    assert comment_result.id == EXPECTED_ADD_COMMENT_ID
-    assert comment_result.body == "hello"
+        assert isinstance(comment_result, Comment)
+        assert comment_result.id == EXPECTED_ADD_COMMENT_ID
+        assert comment_result.body == "hello"
+    finally:
+        impl_patcher.stop()
+        env_patcher.stop()
 
 
 def test_adapter_full_round_trip_through_service() -> None:
@@ -255,7 +348,7 @@ def test_adapter_full_round_trip_through_service() -> None:
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
-            return_value=_FakeClient(),
+            return_value=_FakeClient(api_key="k", token="t"), # noqa: S106 - test token
         ),
         patch.dict(
             "os.environ",
@@ -315,7 +408,7 @@ def test_adapter_through_generated_client_over_http() -> None:
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
-            return_value=_FakeClient(),
+            return_value=_FakeClient(api_key="k", token="t"), # noqa: S106 - test token
         ),
         patch.dict(
             "os.environ",
@@ -355,6 +448,45 @@ def test_adapter_through_generated_client_over_http() -> None:
         assert isinstance(comment, Comment)
         assert comment.body == "hello"
 
+def test_adapter_over_http_list_issues_error_translates_to_domain_exception() -> None:
+    """Service list failure is translated back into a typed domain exception."""
+    adapter, impl_patcher, env_patcher = _build_http_adapter(
+        fake_impl_cls=_ListErrorFakeClient,
+    )
+    try:
+        with pytest.raises(IssueListError):
+            adapter.list_issues("board")
+    finally:
+        impl_patcher.stop()
+        env_patcher.stop()
+
+def test_adapter_over_http_create_issue_error_translates_to_domain_exception() -> None:
+    """Service create failure is translated back into a typed domain exception."""
+    adapter, impl_patcher, env_patcher = _build_http_adapter(
+        fake_impl_cls=_CreateErrorFakeClient,
+    )
+    try:
+        with pytest.raises(IssueCreateError):
+            adapter.create_issue("board", "Bad", "Bad body")
+    finally:
+        impl_patcher.stop()
+        env_patcher.stop()
+
+def test_service_http_status_for_not_found() -> None:
+    """Service maps domain not-found exception to HTTP 404."""
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+    from issue_tracker_client_service.app import app  # noqa: PLC0415
+
+    from issue_tracker_client_service import app as app_module  # noqa: PLC0415
+
+    with (
+        patch.object(app_module, "DefaultIssueTrackerClient", _NotFoundFakeClient),
+        patch.dict("os.environ", {"TRELLO_API_KEY": "k", "TRELLO_API_TOKEN": "t"}),
+    ):
+        http = TestClient(app)
+        response = http.get("/boards/board/issues/999")
+
+    assert response.status_code == HTTP_NOT_FOUND
 
 def test_adapter_session_id_forwarded_to_service() -> None:
     """Adapter with session_id uses the session's token instead of env fallback.
@@ -384,7 +516,7 @@ def test_adapter_session_id_forwarded_to_service() -> None:
 
     # 2. Patch DefaultIssueTrackerClient so we can verify which token was used
     captured_tokens: list[str] = []
-    real_fake = _FakeClient()
+    real_fake = _FakeClient(api_key="k", token="t") # noqa: S106 - test token
 
     class _CapturingClient(_FakeClient):
         def __init__(self, *, api_key: str, token: str) -> None:  # noqa: ARG002 — matches real signature

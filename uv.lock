@@ -9,18 +9,7 @@ members = [
     "issue-tracker-client-impl",
     "issue-tracker-client-service",
     "issue-tracker-client-service-client",
-]
-
-[manifest.dependency-groups]
-dev = [
-    { name = "mkdocs", specifier = ">=1.6" },
-    { name = "mkdocs-material", specifier = ">=9.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
-    { name = "mkdocstrings-python", specifier = ">=1.0.0" },
-    { name = "mypy", specifier = ">=1.8" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.9" },
+    "ospsd-team-03",
 ]
 
 [[package]]
@@ -289,6 +278,7 @@ wheels = [
 name = "griffelib"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/06/eccbd311c9e2b3ca45dbc063b93134c57a1ccc7607c5e545264ad092c4a9/griffelib-2.0.0.tar.gz", hash = "sha256:e504d637a089f5cab9b5daf18f7645970509bf4f53eda8d79ed71cce8bd97934", size = 166312, upload-time = "2026-03-23T21:06:55.954Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/51/c936033e16d12b627ea334aaaaf42229c37620d0f15593456ab69ab48161/griffelib-2.0.0-py3-none-any.whl", hash = "sha256:01284878c966508b6d6f1dbff9b6fa607bc062d8261c5c7253cb285b06422a7f", size = 142004, upload-time = "2026-02-09T19:09:40.561Z" },
 ]
@@ -375,6 +365,10 @@ source = { editable = "components/issue_tracker_client_impl" }
 dependencies = [
     { name = "issue-tracker-client-api" },
     { name = "requests" },
+]
+
+[package.optional-dependencies]
+dev = [
     { name = "types-requests" },
 ]
 
@@ -382,8 +376,9 @@ dependencies = [
 requires-dist = [
     { name = "issue-tracker-client-api", editable = "components/issue_tracker_client_api" },
     { name = "requests", specifier = ">=2.31" },
-    { name = "types-requests", specifier = ">=2.31" },
+    { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.31" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "issue-tracker-client-service"
@@ -738,6 +733,36 @@ sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
 ]
+
+[[package]]
+name = "ospsd-team-03"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.optional-dependencies]
+dev = [
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+    { name = "mkdocstrings-python" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.6" },
+    { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.0" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'", specifier = ">=1.0.3" },
+    { name = "mkdocstrings-python", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "packaging"

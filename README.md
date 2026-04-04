@@ -4,6 +4,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-85%2B%25-brightgreen)](https://circleci.com/gh/yawnka/ospsd-team-03)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Deployed Service](https://img.shields.io/badge/deployed%20service-render-brightgreen)](https://ospsd-team-03.onrender.com)
 
 ## Team Members
 - `ys4780`  Yanka Sikder `@yawnka`
@@ -35,6 +36,14 @@ The project is a `uv` workspace containing five packages:
 3.  **`issue_tracker_client_service`**: A FastAPI service that exposes the implementation over HTTP endpoints, including Trello authorization login/callback flow and session-based multi-user support.
 4.  **`issue_tracker_client_service_client`**: An auto-generated type-safe HTTP client created from the service's OpenAPI spec using `openapi-python-client`.
 5.  **`issue_tracker_client_adapter`**: An adapter implementing `IssueTrackerClient` that delegates to the remote service via the auto-generated client, achieving location transparency.
+
+## Authentication Model
+
+Authentication is implemented using a session-based flow.
+
+After login, the service creates a session and sets an HTTP-only `session_id` cookie. This cookie is automatically included in all subsequent requests and is used by the service to resolve the authenticated user.
+
+The system does not use bearer tokens or `Authorization` headers. Authentication is handled transparently via cookies, and the adapter layer ensures requests include the session information.
 
 ## Project Structure
 
