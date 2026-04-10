@@ -30,6 +30,7 @@ from issue_tracker_client_api.client import (
     Status,
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
+from issue_tracker_client_impl.status_map import resolve_list_name
 
 pytestmark = pytest.mark.unit
 
@@ -147,6 +148,12 @@ def test_init_raises_when_api_token_missing() -> None:
     """Construction raises TypeError when token is not provided."""
     with pytest.raises(TypeError):
         DefaultIssueTrackerClient(api_key=FAKE_KEY)  # type: ignore[call-arg]
+
+
+def test_resolve_list_name_raises_for_unknown_status() -> None:
+    """resolve_list_name raises ValueError for a non-Status input."""
+    with pytest.raises(ValueError, match="Unknown status"):
+        resolve_list_name("not-a-status")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

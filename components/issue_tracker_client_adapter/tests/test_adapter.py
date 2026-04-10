@@ -66,6 +66,27 @@ def test_import_registers_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     _api._factories.extend(saved)
 
 
+def test_registered_factory_raises_without_service_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered adapter factory fails fast when the service URL is unset."""
+    monkeypatch.delenv("ISSUE_TRACKER_SERVICE_URL", raising=False)
+
+    import issue_tracker_client_api.client as _api  # noqa: PLC0415
+
+    import issue_tracker_client_adapter  # noqa: PLC0415
+
+    saved = list(_api._factories)
+    _api._factories.clear()
+    importlib.reload(issue_tracker_client_adapter)
+
+    with pytest.raises(ValueError, match="ISSUE_TRACKER_SERVICE_URL"):
+        _api.get_client()
+
+    _api._factories.clear()
+    _api._factories.extend(saved)
+
+
 @patch("issue_tracker_client_adapter.adapter.get_boards_boards_get")
 def test_get_boards(mock_get_boards: MagicMock, adapter: ServiceClientAdapter) -> None:
     """get_boards returns local Board objects converted from the wire model."""

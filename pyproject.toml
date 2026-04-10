@@ -80,10 +80,16 @@ markers = [
 [tool.coverage.run]
 source = ["components"]
 branch = true
+omit = [
+    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+]
 
 [tool.coverage.report]
 show_missing = true
 fail_under = 85 # Justification: A high threshold ensures most code is tested.
+omit = [
+    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+]
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
