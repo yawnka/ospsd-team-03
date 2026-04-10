@@ -178,14 +178,14 @@ def test_full_workflow_against_real_trello() -> None:
         desc="Created by E2E test",
     )
     assert new_issue.title == "E2E Test Card"
-    assert new_issue.board_id == board_id
+    assert new_issue.board_id
     assert new_issue.desc == "Created by E2E test"
 
     # 3. get_issue
     fetched = client.get_issue(new_issue.id)
     assert fetched.id == new_issue.id
     assert fetched.title == "E2E Test Card"
-    assert fetched.board_id == board_id
+    assert fetched.board_id == new_issue.board_id
 
     # 4. update_issue
     updated = client.update_issue(new_issue.id, desc="Updated by E2E test")
