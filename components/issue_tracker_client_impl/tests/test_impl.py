@@ -567,7 +567,6 @@ def test_create_issue_raises_when_no_lists(
 ) -> None:
     """create_issue raises ValueError when the board has no open lists."""
     mock_requests.get.return_value = _resp([])
-
     with pytest.raises(ValueError, match="no open lists"):
         client.create_issue("Title", BOARD_ID, desc="Desc")
 
