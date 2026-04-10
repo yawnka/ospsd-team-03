@@ -2,19 +2,16 @@
 
 import os
 import secrets
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Protocol, cast
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from issue_tracker_client_api.client import (
-    CommentAddError,
-    Issue,
-    IssueCloseError,
+    BoardNotFoundError,
     IssueCreateError,
-    IssueListError,
     IssueNotFoundError,
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
@@ -22,13 +19,16 @@ from issue_tracker_client_impl.oauth import build_authorization_url
 
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
-    AddCommentIn,
     AuthStatusOut,
-    CommentOut,
+    BoardOut,
+    CreateBoardIn,
     CreateIssueIn,
     HealthOut,
     IssueOut,
+    SuccessOut,
     TokenIn,
+    UpdateBoardIn,
+    UpdateIssueIn,
 )
 from issue_tracker_client_service.session import get_session, save_session
 
@@ -82,35 +82,136 @@ app.add_middleware(
 )
 
 
-def _issue_to_out(issue: Issue) -> IssueOut:
-    """Convert a domain Issue object into an API response model."""
+class _SharedBoardLike(Protocol):
+    """Structural type for the shared board shape."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+
+class _SharedIssueLike(Protocol):
+    """Structural type for the shared issue shape."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def desc(self) -> str: ...
+
+    @property
+    def members(self) -> list[str] | None: ...
+
+    @property
+    def due_date(self) -> str | None: ...
+
+    @property
+    def status(self) -> object: ...
+
+    @property
+    def board_id(self) -> str: ...
+
+
+class _SharedClientLike(Protocol):
+    """Structural type for the shared client shape."""
+
+    def get_boards(self) -> Iterable[_SharedBoardLike]: ...
+
+    def get_board(self, board_id: str) -> _SharedBoardLike: ...
+
+    def create_board(self, name: str) -> _SharedBoardLike: ...
+
+    def update_board(
+        self,
+        board_id: str,
+        name: str | None = None,
+    ) -> _SharedBoardLike: ...
+
+    def delete_board(self, board_id: str) -> bool: ...
+
+    def get_issues(self, board_id: str) -> Iterable[_SharedIssueLike]: ...
+
+    def get_issue(self, issue_id: str) -> _SharedIssueLike: ...
+
+    def create_issue(  # noqa: PLR0913
+        self,
+        title: str,
+        board_id: str,
+        desc: str | None = None,
+        members: list[str] | None = None,
+        due_date: str | None = None,
+        status: object = None,
+    ) -> _SharedIssueLike: ...
+
+    def update_issue(  # noqa: PLR0913
+        self,
+        issue_id: str,
+        title: str | None = None,
+        desc: str | None = None,
+        members: list[str] | None = None,
+        due_date: str | None = None,
+        status: object = None,
+        board_id: str | None = None,
+    ) -> _SharedIssueLike: ...
+
+    def delete_issue(self, issue_id: str) -> bool: ...
+
+
+def _status_to_str(status: object) -> str:
+    """Serialize either an enum-like status or a plain string."""
+    return str(getattr(status, "value", status))
+
+
+def _board_to_out(board: _SharedBoardLike) -> BoardOut:
+    """Convert a shared board object into an API response model."""
+    board_name_value = getattr(board, "board_name", None)
+    board_name = board_name_value if isinstance(board_name_value, str) else board.name
+    return BoardOut(id=board.id, board_name=board_name)
+
+
+def _issue_to_out(issue: _SharedIssueLike) -> IssueOut:
+    """Convert a shared issue object into an API response model."""
     return IssueOut(
         id=issue.id,
         title=issue.title,
-        body=issue.body,
-        state=issue.state.value,
+        desc=issue.desc,
+        members=issue.members,
+        due_date=issue.due_date,
+        status=_status_to_str(issue.status),
+        board_id=issue.board_id,
     )
 
 
 def get_client(
     session_id: str | None = Cookie(default=None),
-) -> DefaultIssueTrackerClient:
+) -> _SharedClientLike:
     """Build a concrete client for the current request."""
     api_key = _require_env("TRELLO_API_KEY")
 
     if session_id is not None:
         session = get_session(session_id)
         if session is not None:
-            return DefaultIssueTrackerClient(
-                api_key=api_key,
-                token=session.access_token,
+            return cast(
+                "_SharedClientLike",
+                DefaultIssueTrackerClient(
+                    api_key=api_key,
+                    token=session.access_token,
+                ),
             )
 
     token = _require_env("TRELLO_API_TOKEN")
-    return DefaultIssueTrackerClient(api_key=api_key, token=token)
+    return cast(
+        "_SharedClientLike",
+        DefaultIssueTrackerClient(api_key=api_key, token=token),
+    )
 
 
-ClientDependency = Annotated[DefaultIssueTrackerClient, Depends(get_client)]
+ClientDependency = Annotated[_SharedClientLike, Depends(get_client)]
 
 
 @app.get("/")
@@ -240,104 +341,221 @@ def auth_token(request_body: TokenIn, response: Response) -> AuthStatusOut:
     return AuthStatusOut(status="authenticated", session_id=session_id)
 
 
-@app.get("/boards/{board}/issues")
-def list_issues(
-    board: str,
-    client: ClientDependency,
-) -> list[IssueOut]:
-    """List issues for a board."""
+@app.get("/boards")
+def get_boards(client: ClientDependency) -> list[BoardOut]:
+    """List boards using the shared API contract."""
     try:
-        return [_issue_to_out(issue) for issue in client.list_issues(board)]
-    except IssueListError as exc:
+        boards = client.get_boards()
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to list issues for board '{board}'",
+            detail="Failed to list boards",
         ) from exc
+    else:
+        return [_board_to_out(board) for board in boards]
 
 
-@app.get("/boards/{board}/issues/{issue_id}")
+@app.get("/boards/{board_id}")
+def get_board(
+    board_id: str,
+    client: ClientDependency,
+) -> BoardOut:
+    """Fetch a single board using the shared API contract."""
+    try:
+        board = client.get_board(board_id)
+    except BoardNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Board {board_id} not found",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch board '{board_id}'",
+        ) from exc
+    else:
+        return _board_to_out(board)
+
+
+@app.post("/boards")
+def create_board(
+    payload: CreateBoardIn,
+    client: ClientDependency,
+) -> BoardOut:
+    """Create a board using the shared API contract."""
+    try:
+        board = client.create_board(payload.name)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create board '{payload.name}'",
+        ) from exc
+    else:
+        return _board_to_out(board)
+
+
+@app.patch("/boards/{board_id}")
+def update_board(
+    board_id: str,
+    payload: UpdateBoardIn,
+    client: ClientDependency,
+) -> BoardOut:
+    """Update a board using the shared API contract."""
+    try:
+        board = client.update_board(board_id, name=payload.name)
+    except BoardNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Board {board_id} not found",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update board '{board_id}'",
+        ) from exc
+    else:
+        return _board_to_out(board)
+
+
+@app.delete("/boards/{board_id}")
+def delete_board(
+    board_id: str,
+    client: ClientDependency,
+) -> SuccessOut:
+    """Delete a board using the shared API contract."""
+    try:
+        success = client.delete_board(board_id)
+    except BoardNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Board {board_id} not found",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete board '{board_id}'",
+        ) from exc
+    else:
+        return SuccessOut(success=success)
+
+
+@app.get("/boards/{board_id}/issues")
+def get_issues(
+    board_id: str,
+    client: ClientDependency,
+) -> list[IssueOut]:
+    """List issues for a board using the shared API contract."""
+    try:
+        issues = client.get_issues(board_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list issues for board '{board_id}'",
+        ) from exc
+    else:
+        return [_issue_to_out(issue) for issue in issues]
+
+
+@app.get("/issues/{issue_id}")
 def get_issue(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     client: ClientDependency,
 ) -> IssueOut:
-    """Fetch a single issue by ID."""
+    """Fetch a single issue using the shared API contract."""
     try:
-        issue = client.get_issue(board, issue_id)
+        issue = client.get_issue(issue_id)
     except IssueNotFoundError as exc:
         raise HTTPException(
             status_code=404,
-            detail=f"Issue {issue_id} not found on board '{board}'",
+            detail=f"Issue {issue_id} not found",
         ) from exc
-    except IssueListError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch issue {issue_id} from board '{board}'",
+            detail=f"Failed to fetch issue '{issue_id}'",
         ) from exc
     else:
         return _issue_to_out(issue)
 
 
-@app.post("/boards/{board}/issues")
+@app.post("/boards/{board_id}/issues")
 def create_issue(
-    board: str,
+    board_id: str,
     payload: CreateIssueIn,
     client: ClientDependency,
 ) -> IssueOut:
-    """Create a new issue in a board."""
+    """Create an issue using the shared API contract."""
     try:
-        issue = client.create_issue(board, payload.title, payload.body)
+        issue = client.create_issue(
+            title=payload.title,
+            board_id=board_id,
+            desc=payload.desc,
+            members=payload.members,
+            due_date=payload.due_date,
+            status=payload.status,
+        )
     except IssueCreateError as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create issue in board '{board}'",
+            detail=f"Failed to create issue in board '{board_id}'",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create issue in board '{board_id}'",
         ) from exc
     else:
         return _issue_to_out(issue)
 
 
-@app.post("/boards/{board}/issues/{issue_id}/close")
-def close_issue(
-    board: str,
-    issue_id: int,
+@app.patch("/issues/{issue_id}")
+def update_issue(
+    issue_id: str,
+    payload: UpdateIssueIn,
     client: ClientDependency,
-) -> dict[str, bool]:
-    """Close an existing issue."""
+) -> IssueOut:
+    """Update an issue using the shared API contract."""
     try:
-        success = client.close_issue(board, issue_id)
+        issue = client.update_issue(
+            issue_id=issue_id,
+            title=payload.title,
+            desc=payload.desc,
+            members=payload.members,
+            due_date=payload.due_date,
+            status=payload.status,
+            board_id=payload.board_id,
+        )
     except IssueNotFoundError as exc:
         raise HTTPException(
             status_code=404,
-            detail=f"Issue {issue_id} not found on board '{board}'",
+            detail=f"Issue {issue_id} not found",
         ) from exc
-    except IssueCloseError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to close issue {issue_id} in board '{board}'",
+            detail=f"Failed to update issue '{issue_id}'",
         ) from exc
     else:
-        return {"success": success}
+        return _issue_to_out(issue)
 
 
-@app.post("/boards/{board}/issues/{issue_id}/comments")
-def add_comment(
-    board: str,
-    issue_id: int,
-    payload: AddCommentIn,
+@app.delete("/issues/{issue_id}")
+def delete_issue(
+    issue_id: str,
     client: ClientDependency,
-) -> CommentOut:
-    """Add a comment to an issue."""
+) -> SuccessOut:
+    """Delete an issue using the shared API contract."""
     try:
-        comment = client.add_comment(board, issue_id, payload.body)
+        success = client.delete_issue(issue_id)
     except IssueNotFoundError as exc:
         raise HTTPException(
             status_code=404,
-            detail=f"Issue {issue_id} not found on board '{board}'",
+            detail=f"Issue {issue_id} not found",
         ) from exc
-    except CommentAddError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to add comment to issue {issue_id} in board '{board}'",
+            detail=f"Failed to delete issue '{issue_id}'",
         ) from exc
     else:
-        return CommentOut(id=comment.id, body=comment.body)
+        return SuccessOut(success=success)

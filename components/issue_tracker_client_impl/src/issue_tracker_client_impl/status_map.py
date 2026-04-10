@@ -2,50 +2,50 @@
 
 from __future__ import annotations
 
-# Maps lowercased Trello list name variants to a canonical status string.
-LIST_NAME_TO_STATUS: dict[str, str] = {
-    "to do": "to_do",
-    "todo": "to_do",
-    "backlog": "to_do",
-    "new": "to_do",
-    "open": "to_do",
-    "in progress": "in_progress",
-    "in-progress": "in_progress",
-    "doing": "in_progress",
-    "wip": "in_progress",
-    "done": "completed",
-    "completed": "completed",
-    "complete": "completed",
-    "closed": "completed",
-    "finished": "completed",
+from issue_tracker_client_api.client import Status
+
+# Maps lowercased Trello list name variants to a canonical Status enum value.
+LIST_NAME_TO_STATUS: dict[str, Status] = {
+    "to do": Status.TO_DO,
+    "todo": Status.TO_DO,
+    "backlog": Status.TO_DO,
+    "new": Status.TO_DO,
+    "open": Status.TO_DO,
+    "in progress": Status.IN_PROGRESS,
+    "in-progress": Status.IN_PROGRESS,
+    "doing": Status.IN_PROGRESS,
+    "wip": Status.IN_PROGRESS,
+    "done": Status.COMPLETED,
+    "completed": Status.COMPLETED,
+    "complete": Status.COMPLETED,
+    "closed": Status.COMPLETED,
+    "finished": Status.COMPLETED,
 }
 
 # Preferred Trello list name to create/match when looking up by status.
-STATUS_TO_LIST_NAME: dict[str, str] = {
-    "to_do": "To Do",
-    "in_progress": "In Progress",
-    "completed": "Done",
+STATUS_TO_LIST_NAME: dict[Status, str] = {
+    Status.TO_DO: "To Do",
+    Status.IN_PROGRESS: "In Progress",
+    Status.COMPLETED: "Done",
 }
 
-VALID_STATUSES: frozenset[str] = frozenset(STATUS_TO_LIST_NAME)
 
+def resolve_status(list_name: str) -> Status:
+    """Return the canonical Status for a Trello list name.
 
-def resolve_status(list_name: str) -> str:
-    """Return the canonical status for a Trello list name.
-
-    Falls back to ``"to_do"`` for unrecognised names.
+    Falls back to ``Status.TO_DO`` for unrecognised names.
     """
-    return LIST_NAME_TO_STATUS.get(list_name.lower().strip(), "to_do")
+    return LIST_NAME_TO_STATUS.get(list_name.lower().strip(), Status.TO_DO)
 
 
-def resolve_list_name(status: str) -> str:
+def resolve_list_name(status: Status) -> str:
     """Return the preferred Trello list name for a canonical *status*.
 
     Raises:
-        ValueError: If *status* is not one of the recognised values.
+        ValueError: If *status* is not a recognised Status value.
 
     """
     if status not in STATUS_TO_LIST_NAME:
-        msg = f"Unknown status {status!r}. Must be one of: {sorted(VALID_STATUSES)}"
+        msg = f"Unknown status {status!r}. Must be one of: {list(STATUS_TO_LIST_NAME)}"
         raise ValueError(msg)
     return STATUS_TO_LIST_NAME[status]

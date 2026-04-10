@@ -1,7 +1,7 @@
 """Unit tests for the DI mechanism and public types in issue_tracker_client_api."""
 
 import dataclasses
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 
 import issue_tracker_client_api.client as _reg
 import pytest
@@ -11,31 +11,62 @@ from issue_tracker_client_api.client import (
     Issue,
     IssueNotFoundError,
     IssueTrackerClient,
+    Status,
     get_client,
     register,
 )
 
 pytestmark = pytest.mark.unit
+
+
 class _MockClient(IssueTrackerClient):
-    def get_boards(self) -> list[Board]:
-        return []
+    def get_boards(self) -> Iterator[Board]:
+        return iter([])
 
     def get_board(self, _board_id: str) -> Board:
         raise NotImplementedError
 
-    def get_issues(self, _board_id: str, _status: str | None = None) -> list[Issue]:
-        return []
+    def get_issues(
+        self, _board_id: str, _status: Status | None = None
+    ) -> Iterator[Issue]:
+        return iter([])
 
     def get_issue(self, _issue_id: str) -> Issue:
         raise NotImplementedError
 
-    def create_issue(self, _board_id: str, _title: str, _description: str) -> Issue:
+    def create_issue(
+        self,
+        _title: str,
+        _board_id: str,
+        _desc: str | None = None,
+        _members: list[str] | None = None,
+        _due_date: str | None = None,
+        _status: Status = Status.TO_DO,
+    ) -> Issue:
         raise NotImplementedError
 
-    def update_issue_status(self, _issue_id: str, _status: str) -> Issue:
+    def update_issue(
+        self,
+        _issue_id: str,
+        _title: str | None = None,
+        _desc: str | None = None,
+        _members: list[str] | None = None,
+        _due_date: str | None = None,
+        _status: Status | None = None,
+        _board_id: str | None = None,
+    ) -> Issue:
+        raise NotImplementedError
+
+    def update_board(self, _board_id: str, _name: str | None = None) -> Board:
         raise NotImplementedError
 
     def delete_issue(self, _issue_id: str) -> bool:
+        raise NotImplementedError
+
+    def delete_board(self, _board_id: str) -> bool:
+        raise NotImplementedError
+
+    def create_board(self, _name: str) -> Board:
         raise NotImplementedError
 
 
@@ -102,24 +133,35 @@ def test_board_is_frozen() -> None:
 
 
 def test_issue_has_expected_fields() -> None:
-    """Issue stores id, board_id, title, description, and status."""
+    """Issue stores id, board_id, title, desc, status, members, and due_date."""
     issue = Issue(
         id="card-id",
         board_id="board-id",
         title="Fix bug",
-        description="Detailed description",
-        status="to_do",
+        desc="Detailed description",
+        status=Status.TO_DO,
+        members=["user1"],
+        due_date="2026-05-01",
     )
     assert issue.id == "card-id"
     assert issue.board_id == "board-id"
     assert issue.title == "Fix bug"
-    assert issue.description == "Detailed description"
-    assert issue.status == "to_do"
+    assert issue.desc == "Detailed description"
+    assert issue.status == Status.TO_DO
+    assert issue.members == ["user1"]
+    assert issue.due_date == "2026-05-01"
+
+
+def test_issue_optional_fields_default_to_none() -> None:
+    """Issue.members and Issue.due_date default to None."""
+    issue = Issue(id="c", board_id="b", title="t", desc="d", status=Status.IN_PROGRESS)
+    assert issue.members is None
+    assert issue.due_date is None
 
 
 def test_issue_is_frozen() -> None:
     """Issue raises FrozenInstanceError when mutated."""
-    issue = Issue(id="c", board_id="b", title="t", description="d", status="to_do")
+    issue = Issue(id="c", board_id="b", title="t", desc="d", status=Status.TO_DO)
     with pytest.raises(dataclasses.FrozenInstanceError):
         issue.title = "new"  # type: ignore[misc]
 

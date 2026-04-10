@@ -18,7 +18,6 @@ Authentication: every request carries key=TRELLO_API_KEY and
 token=TRELLO_API_TOKEN in query params.
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,6 +27,7 @@ from issue_tracker_client_api.client import (
     BoardNotFoundError,
     Issue,
     IssueNotFoundError,
+    Status,
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
@@ -104,11 +104,8 @@ _LISTS = [
 
 @pytest.fixture
 def client() -> DefaultIssueTrackerClient:
-    """Return a DefaultIssueTrackerClient with both Trello credentials injected."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        return DefaultIssueTrackerClient()
+    """Return a DefaultIssueTrackerClient with test credentials."""
+    return DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
 
 
 @pytest.fixture
@@ -129,46 +126,27 @@ def mock_requests() -> MagicMock:
 
 
 def test_init_stores_api_key() -> None:
-    """TRELLO_API_KEY is stored as _api_key after construction."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        c = DefaultIssueTrackerClient()
+    """api_key is stored as _api_key after construction."""
+    c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
     assert c._api_key == FAKE_KEY
 
 
 def test_init_stores_api_token() -> None:
-    """TRELLO_API_TOKEN is stored as _api_token after construction."""
-    with patch.dict(
-        os.environ, {"TRELLO_API_KEY": FAKE_KEY, "TRELLO_API_TOKEN": FAKE_TOKEN}
-    ):
-        c = DefaultIssueTrackerClient()
+    """Token is stored as _api_token after construction."""
+    c = DefaultIssueTrackerClient(api_key=FAKE_KEY, token=FAKE_TOKEN)
     assert c._api_token == FAKE_TOKEN
 
 
 def test_init_raises_when_api_key_missing() -> None:
-    """Construction raises KeyError when TRELLO_API_KEY is absent."""
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k not in {"TRELLO_API_KEY", "TRELLO_API_TOKEN"}
-    }
-    with (
-        patch.dict(os.environ, env, clear=True),
-        pytest.raises(KeyError, match="TRELLO_API_KEY"),
-    ):
-        DefaultIssueTrackerClient()
+    """Construction raises TypeError when api_key is not provided."""
+    with pytest.raises(TypeError):
+        DefaultIssueTrackerClient(token=FAKE_TOKEN)  # type: ignore[call-arg]
 
 
 def test_init_raises_when_api_token_missing() -> None:
-    """Construction raises KeyError when TRELLO_API_TOKEN is absent."""
-    env = {k: v for k, v in os.environ.items() if k != "TRELLO_API_TOKEN"}
-    env["TRELLO_API_KEY"] = FAKE_KEY
-    with (
-        patch.dict(os.environ, env, clear=True),
-        pytest.raises(KeyError, match="TRELLO_API_TOKEN"),
-    ):
-        DefaultIssueTrackerClient()
+    """Construction raises TypeError when token is not provided."""
+    with pytest.raises(TypeError):
+        DefaultIssueTrackerClient(api_key=FAKE_KEY)  # type: ignore[call-arg]
 
 
 # ---------------------------------------------------------------------------
@@ -207,12 +185,12 @@ def test_get_boards_returns_board_list(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """get_boards returns a list of Board dataclasses with correct fields."""
+    """get_boards returns an iterator of Board dataclasses with correct fields."""
     mock_requests.get.return_value = _resp(
         [_board(BOARD_ID, "Alpha"), _board(BOARD_ID_2, "Beta")]
     )
 
-    boards = client.get_boards()
+    boards = list(client.get_boards())
 
     assert len(boards) == 2  # noqa: PLR2004
     assert all(isinstance(b, Board) for b in boards)
@@ -222,14 +200,14 @@ def test_get_boards_returns_board_list(
     assert boards[1].name == "Beta"
 
 
-def test_get_boards_returns_empty_list_when_none(
+def test_get_boards_returns_empty_when_none(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """get_boards returns an empty list when the member has no boards."""
+    """get_boards returns an empty iterator when the member has no boards."""
     mock_requests.get.return_value = _resp([])
 
-    boards = client.get_boards()
+    boards = list(client.get_boards())
 
     assert boards == []
 
@@ -314,7 +292,7 @@ def test_get_issues_returns_issues_with_board_id(
         ]),
     ]
 
-    issues = client.get_issues(BOARD_ID)
+    issues = list(client.get_issues(BOARD_ID))
 
     assert len(issues) == 2  # noqa: PLR2004
     assert all(isinstance(i, Issue) for i in issues)
@@ -325,7 +303,7 @@ def test_get_issues_maps_list_name_to_status(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """get_issues resolves each card's list name to the correct canonical status."""
+    """get_issues resolves each card's list name to the correct canonical Status."""
     mock_requests.get.side_effect = [
         _resp(_LISTS),
         _resp([
@@ -335,19 +313,19 @@ def test_get_issues_maps_list_name_to_status(
         ]),
     ]
 
-    issues = client.get_issues(BOARD_ID)
+    issues = list(client.get_issues(BOARD_ID))
 
     statuses = {i.id: i.status for i in issues}
-    assert statuses["c1"] == "to_do"
-    assert statuses["c2"] == "in_progress"
-    assert statuses["c3"] == "completed"
+    assert statuses["c1"] == Status.TO_DO
+    assert statuses["c2"] == Status.IN_PROGRESS
+    assert statuses["c3"] == Status.COMPLETED
 
 
 def test_get_issues_filters_by_status(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """get_issues returns only issues matching the requested status."""
+    """get_issues returns only issues matching the requested Status."""
     mock_requests.get.side_effect = [
         _resp(_LISTS),
         _resp([
@@ -356,11 +334,11 @@ def test_get_issues_filters_by_status(
         ]),
     ]
 
-    issues = client.get_issues(BOARD_ID, status="in_progress")
+    issues = list(client.get_issues(BOARD_ID, status=Status.IN_PROGRESS))
 
     assert len(issues) == 1
     assert issues[0].id == "c2"
-    assert issues[0].status == "in_progress"
+    assert issues[0].status == Status.IN_PROGRESS
 
 
 def test_get_issues_passes_auth_params(
@@ -431,8 +409,8 @@ def test_get_issue_returns_correct_issue(
     assert issue.id == CARD_ID
     assert issue.board_id == BOARD_ID
     assert issue.title == "Fix login bug"
-    assert issue.description == "Details here"
-    assert issue.status == "completed"
+    assert issue.desc == "Details here"
+    assert issue.status == Status.COMPLETED
 
 
 def test_get_issue_raises_issue_not_found_on_404(
@@ -470,7 +448,7 @@ def test_create_issue_posts_to_cards_endpoint(
     mock_requests.get.return_value = _resp(_LISTS)
     mock_requests.post.return_value = _resp(_card(name="New issue", desc="body text"))
 
-    client.create_issue(BOARD_ID, "New issue", "body text")
+    client.create_issue("New issue", BOARD_ID, desc="body text")
 
     mock_requests.post.assert_called_once()
     url: str = mock_requests.post.call_args[0][0]
@@ -485,7 +463,7 @@ def test_create_issue_sends_list_id_name_desc(
     mock_requests.get.return_value = _resp(_LISTS)
     mock_requests.post.return_value = _resp(_card(name="My title", desc="My desc"))
 
-    client.create_issue(BOARD_ID, "My title", "My desc")
+    client.create_issue("My title", BOARD_ID, desc="My desc")
 
     params: dict = mock_requests.post.call_args[1]["params"]
     assert params["idList"] == LIST_ID_TODO
@@ -505,7 +483,7 @@ def test_create_issue_prefers_to_do_list(
     mock_requests.get.return_value = _resp(lists_with_todo_second)
     mock_requests.post.return_value = _resp(_card(id_list=LIST_ID_TODO))
 
-    client.create_issue(BOARD_ID, "Title", "Desc")
+    client.create_issue("Title", BOARD_ID, desc="Desc")
 
     params: dict = mock_requests.post.call_args[1]["params"]
     assert params["idList"] == LIST_ID_TODO
@@ -523,7 +501,7 @@ def test_create_issue_falls_back_to_first_list_when_no_todo(
     mock_requests.get.return_value = _resp(lists_no_todo)
     mock_requests.post.return_value = _resp(_card(id_list="first-id"))
 
-    client.create_issue(BOARD_ID, "Title", "Desc")
+    client.create_issue("Title", BOARD_ID, desc="Desc")
 
     params: dict = mock_requests.post.call_args[1]["params"]
     assert params["idList"] == "first-id"
@@ -537,12 +515,12 @@ def test_create_issue_returns_issue_with_board_id(
     mock_requests.get.return_value = _resp(_LISTS)
     mock_requests.post.return_value = _resp(_card(name="New issue", desc="body"))
 
-    issue = client.create_issue(BOARD_ID, "New issue", "body")
+    issue = client.create_issue("New issue", BOARD_ID, desc="body")
 
     assert isinstance(issue, Issue)
     assert issue.board_id == BOARD_ID
     assert issue.title == "New issue"
-    assert issue.status == "to_do"
+    assert issue.status == Status.TO_DO
 
 
 def test_create_issue_raises_when_no_lists(
@@ -553,102 +531,101 @@ def test_create_issue_raises_when_no_lists(
     mock_requests.get.return_value = _resp([])
 
     with pytest.raises(ValueError, match="no open lists"):
-        client.create_issue(BOARD_ID, "Title", "Desc")
+        client.create_issue("Title", BOARD_ID, desc="Desc")
 
 
 # ---------------------------------------------------------------------------
-# update_issue_status  ->  GET /cards/{id} + GET /boards/{id}/lists + PUT /cards/{id}
+# update_issue  ->  GET /cards/{id} + GET /boards/{id}/lists + PUT /cards/{id}
 # ---------------------------------------------------------------------------
 
 
-def test_update_issue_status_moves_card_to_correct_list(
+def test_update_issue_moves_card_to_correct_list(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """update_issue_status puts the card into the list matching the target status."""
+    """update_issue puts the card into the list matching the target status."""
     updated_card = _card(id_list=LIST_ID_DONE)
     mock_requests.get.side_effect = [
-        _resp(_card(id_list=LIST_ID_TODO)),
-        _resp(_LISTS),
+        _resp(_card(id_list=LIST_ID_TODO)),   # GET card for idBoard
+        _resp(_LISTS),                          # GET board lists
+        _resp({"name": "Done"}),               # GET list name after PUT
     ]
     mock_requests.put.return_value = _resp(updated_card)
 
-    client.update_issue_status(CARD_ID, "completed")
+    client.update_issue(CARD_ID, status=Status.COMPLETED)
 
     params: dict = mock_requests.put.call_args[1]["params"]
     assert params["idList"] == LIST_ID_DONE
 
 
-def test_update_issue_status_calls_put_on_card(
+def test_update_issue_calls_put_on_card(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """update_issue_status sends PUT to /1/cards/{issue_id}."""
+    """update_issue sends PUT to /1/cards/{issue_id}."""
     mock_requests.get.side_effect = [
         _resp(_card()),
         _resp(_LISTS),
+        _resp({"name": "In Progress"}),
     ]
     mock_requests.put.return_value = _resp(_card(id_list=LIST_ID_INPROG))
 
-    client.update_issue_status(CARD_ID, "in_progress")
+    client.update_issue(CARD_ID, status=Status.IN_PROGRESS)
 
     url: str = mock_requests.put.call_args[0][0]
     assert CARD_ID in url
 
 
-def test_update_issue_status_returns_updated_issue(
+def test_update_issue_returns_updated_issue(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """update_issue_status returns an Issue reflecting the new status."""
+    """update_issue returns an Issue reflecting the new status."""
     mock_requests.get.side_effect = [
-        _resp(_card(id_list=LIST_ID_TODO)),
-        _resp(_LISTS),
+        _resp(_card(id_list=LIST_ID_TODO)),   # GET card for idBoard
+        _resp(_LISTS),                          # GET board lists
+        _resp({"name": "In Progress"}),        # GET list name after PUT
     ]
     mock_requests.put.return_value = _resp(
         _card(id_list=LIST_ID_INPROG, name="My card")
     )
 
-    issue = client.update_issue_status(CARD_ID, "in_progress")
+    issue = client.update_issue(CARD_ID, status=Status.IN_PROGRESS)
 
     assert isinstance(issue, Issue)
     assert issue.id == CARD_ID
     assert issue.board_id == BOARD_ID
-    assert issue.status == "in_progress"
+    assert issue.status == Status.IN_PROGRESS
     assert issue.title == "My card"
 
 
-def test_update_issue_status_raises_issue_not_found_on_404(
+def test_update_issue_raises_issue_not_found_on_404(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """update_issue_status raises IssueNotFoundError when the card does not exist."""
+    """update_issue raises IssueNotFoundError when the card does not exist."""
     mock_requests.get.return_value = _err_resp(404)
+    mock_requests.put.return_value = _err_resp(404)
 
     with pytest.raises(IssueNotFoundError):
-        client.update_issue_status(CARD_ID, "completed")
+        client.update_issue(CARD_ID, status=Status.COMPLETED)
 
 
-def test_update_issue_status_raises_value_error_for_unknown_status(
-    client: DefaultIssueTrackerClient,
-) -> None:
-    """update_issue_status raises ValueError for an unrecognised status string."""
-    with pytest.raises(ValueError, match="Unknown status"):
-        client.update_issue_status(CARD_ID, "bogus_status")
-
-
-def test_update_issue_status_raises_value_error_when_list_not_on_board(
+def test_update_issue_updates_title_only(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
-    """update_issue_status raises ValueError when the board has no matching list."""
-    mock_requests.get.side_effect = [
-        _resp(_card()),
-        _resp([_list_payload(LIST_ID_TODO, "To Do")]),  # board has no "Done" list
-    ]
+    """update_issue sends only changed fields; omits idList when status not given."""
+    updated_card = _card(name="New Title", id_list=LIST_ID_TODO)
+    mock_requests.get.return_value = _resp({"name": "To Do"})  # GET list name after PUT
+    mock_requests.put.return_value = _resp(updated_card)
 
-    with pytest.raises(ValueError, match="No list matching status"):
-        client.update_issue_status(CARD_ID, "completed")
+    issue = client.update_issue(CARD_ID, title="New Title")
+
+    params: dict = mock_requests.put.call_args[1]["params"]
+    assert params["name"] == "New Title"
+    assert "idList" not in params
+    assert issue.title == "New Title"
 
 
 # ---------------------------------------------------------------------------
