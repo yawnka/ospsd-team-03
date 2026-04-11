@@ -8,13 +8,13 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 import requests
+from api.client import Client  # type: ignore[import-untyped]
+from api.issue import Status  # type: ignore[import-untyped]
 from issue_tracker_client_api.client import (
     Board,
     BoardNotFoundError,
     Issue,
     IssueNotFoundError,
-    IssueTrackerClient,
-    Status,
 )
 
 from issue_tracker_client_impl.status_map import (
@@ -24,7 +24,7 @@ from issue_tracker_client_impl.status_map import (
 BASE_URL = "https://api.trello.com/1"
 
 
-class DefaultIssueTrackerClient(IssueTrackerClient):
+class DefaultIssueTrackerClient(Client):  # type: ignore[misc]
     """Concrete IssueTrackerClient that talks to the Trello REST API."""
 
     def __init__(self, api_key: str, token: str) -> None:
