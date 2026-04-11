@@ -18,7 +18,9 @@ dev = [
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 src = ["components"]
-exclude = ["components/issue_tracker_client_service_client"]
+exclude = [
+    "components/issue_tracker_client_service_client/issue_tracker_client_service_client",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -47,6 +49,10 @@ ignore = [
     "SLF001",
 ]
 
+"components/**/src/main.py" = [
+    "INP001",
+]
+
 [tool.ruff.format]
 # use ruff format defaults (black-compatible)
 
@@ -56,6 +62,7 @@ strict = true
 exclude = [
   "^tests/",
   "^components/.*/tests/",
+  "^components/issue_tracker_client_service_client/issue_tracker_client_service_client/",
 ]
 
 # ── Pytest ───────────────────────────────────────────────────────────────────
@@ -73,10 +80,16 @@ markers = [
 [tool.coverage.run]
 source = ["components"]
 branch = true
+omit = [
+    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+]
 
 [tool.coverage.report]
 show_missing = true
 fail_under = 85 # Justification: A high threshold ensures most code is tested.
+omit = [
+    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+]
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
