@@ -4,14 +4,14 @@ import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest
+from api.board import Board as SharedBoard  # type: ignore[import-untyped]
+from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
+from api.issue import Status as SharedStatus  # type: ignore[import-untyped]
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
 from issue_tracker_client_api.client import (
-    Board,
     BoardNotFoundError,
-    Issue,
     IssueCreateError,
     IssueNotFoundError,
-    Status,
     get_client,
 )
 from issue_tracker_client_service_client.models import BoardOut, IssueOut, SuccessOut
@@ -19,6 +19,7 @@ from issue_tracker_client_service_client.models import BoardOut, IssueOut, Succe
 from issue_tracker_client_service_client import errors
 
 pytestmark = pytest.mark.unit
+EXPECTED_BOARD_COUNT = 2
 
 
 @pytest.fixture
@@ -89,7 +90,7 @@ def test_registered_factory_raises_without_service_url(
 
 @patch("issue_tracker_client_adapter.adapter.get_boards_boards_get")
 def test_get_boards(mock_get_boards: MagicMock, adapter: ServiceClientAdapter) -> None:
-    """get_boards returns local Board objects converted from the wire model."""
+    """get_boards returns shared Board objects converted from the wire model."""
     mock_get_boards.sync.return_value = [
         BoardOut(id="board-1", board_name="Platform"),
         BoardOut(id="board-2", board_name="Ops"),
@@ -97,20 +98,24 @@ def test_get_boards(mock_get_boards: MagicMock, adapter: ServiceClientAdapter) -
 
     result = list(adapter.get_boards())
 
-    assert result == [
-        Board(id="board-1", name="Platform"),
-        Board(id="board-2", name="Ops"),
-    ]
+    assert len(result) == EXPECTED_BOARD_COUNT
+    assert all(isinstance(board, SharedBoard) for board in result)
+    assert result[0].id == "board-1"
+    assert result[0].board_name == "Platform"
+    assert result[1].id == "board-2"
+    assert result[1].board_name == "Ops"
 
 
 @patch("issue_tracker_client_adapter.adapter.get_board_boards_board_id_get")
 def test_get_board(mock_get_board: MagicMock, adapter: ServiceClientAdapter) -> None:
-    """get_board returns a converted local Board."""
+    """get_board returns a converted shared Board."""
     mock_get_board.sync.return_value = BoardOut(id="board-1", board_name="Platform")
 
     result = adapter.get_board("board-1")
 
-    assert result == Board(id="board-1", name="Platform")
+    assert isinstance(result, SharedBoard)
+    assert result.id == "board-1"
+    assert result.board_name == "Platform"
 
 
 @patch("issue_tracker_client_adapter.adapter.get_board_boards_board_id_get")
@@ -136,37 +141,28 @@ def test_get_issues_filters_by_status(
         _issue_out(issue_id="issue-2", status="in_progress"),
     ]
 
-    result = list(adapter.get_issues("board-1", status=Status.IN_PROGRESS))
+    result = list(adapter.get_issues("board-1", status=SharedStatus.IN_PROGRESS))
 
-    assert result == [
-        Issue(
-            id="issue-2",
-            board_id="board-1",
-            title="Test Issue",
-            desc="Test Desc",
-            status=Status.IN_PROGRESS,
-            members=None,
-            due_date=None,
-        )
-    ]
+    assert len(result) == 1
+    assert isinstance(result[0], SharedIssue)
+    assert result[0].id == "issue-2"
+    assert result[0].board_id == "board-1"
+    assert result[0].status == SharedStatus.IN_PROGRESS
 
 
 @patch("issue_tracker_client_adapter.adapter.get_issue_issues_issue_id_get")
 def test_get_issue(mock_get_issue: MagicMock, adapter: ServiceClientAdapter) -> None:
-    """get_issue returns a converted local Issue."""
+    """get_issue returns a converted shared Issue."""
     mock_get_issue.sync.return_value = _issue_out(status="completed")
 
     result = adapter.get_issue("issue-1")
 
-    assert result == Issue(
-        id="issue-1",
-        board_id="board-1",
-        title="Test Issue",
-        desc="Test Desc",
-        status=Status.COMPLETED,
-        members=None,
-        due_date=None,
-    )
+    assert isinstance(result, SharedIssue)
+    assert result.id == "issue-1"
+    assert result.board_id == "board-1"
+    assert result.title == "Test Issue"
+    assert result.desc == "Test Desc"
+    assert result.status == SharedStatus.COMPLETED
 
 
 @patch("issue_tracker_client_adapter.adapter.get_issue_issues_issue_id_get")
@@ -197,20 +193,17 @@ def test_create_issue(
         title="New Issue",
         board_id="board-1",
         desc="New Desc",
-        status=Status.IN_PROGRESS,
+        status=SharedStatus.IN_PROGRESS,
     )
 
     payload = mock_create_issue.sync.call_args.kwargs["body"]
     assert str(payload.status) == "in_progress"
-    assert result == Issue(
-        id="issue-1",
-        board_id="board-1",
-        title="New Issue",
-        desc="New Desc",
-        status=Status.IN_PROGRESS,
-        members=None,
-        due_date=None,
-    )
+    assert isinstance(result, SharedIssue)
+    assert result.id == "issue-1"
+    assert result.board_id == "board-1"
+    assert result.title == "New Issue"
+    assert result.desc == "New Desc"
+    assert result.status == SharedStatus.IN_PROGRESS
 
 
 @patch("issue_tracker_client_adapter.adapter.create_issue_boards_board_id_issues_post")
@@ -236,12 +229,12 @@ def test_update_issue(
     result = adapter.update_issue(
         "issue-1",
         desc="Updated",
-        status=Status.COMPLETED,
+        status=SharedStatus.COMPLETED,
     )
 
     payload = mock_update_issue.sync.call_args.kwargs["body"]
     assert str(payload.status) == "completed"
-    assert result.status == Status.COMPLETED
+    assert result.status == SharedStatus.COMPLETED
     assert result.desc == "Updated"
 
 
@@ -250,14 +243,16 @@ def test_create_board(
     mock_create_board: MagicMock,
     adapter: ServiceClientAdapter,
 ) -> None:
-    """create_board returns a converted local Board."""
+    """create_board returns a converted shared Board."""
     mock_create_board.sync.return_value = BoardOut(id="board-3", board_name="Infra")
 
     result = adapter.create_board("Infra")
 
     payload = mock_create_board.sync.call_args.kwargs["body"]
     assert payload.name == "Infra"
-    assert result == Board(id="board-3", name="Infra")
+    assert isinstance(result, SharedBoard)
+    assert result.id == "board-3"
+    assert result.board_name == "Infra"
 
 
 @patch("issue_tracker_client_adapter.adapter.update_board_boards_board_id_patch")
@@ -265,7 +260,7 @@ def test_update_board(
     mock_update_board: MagicMock,
     adapter: ServiceClientAdapter,
 ) -> None:
-    """update_board returns a converted local Board."""
+    """update_board returns a converted shared Board."""
     mock_update_board.sync.return_value = BoardOut(
         id="board-1",
         board_name="Platform Eng",
@@ -275,7 +270,9 @@ def test_update_board(
 
     payload = mock_update_board.sync.call_args.kwargs["body"]
     assert payload.name == "Platform Eng"
-    assert result == Board(id="board-1", name="Platform Eng")
+    assert isinstance(result, SharedBoard)
+    assert result.id == "board-1"
+    assert result.board_name == "Platform Eng"
 
 
 @patch("issue_tracker_client_adapter.adapter.delete_issue_issues_issue_id_delete")

@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 import httpx
+from api.board import Board as SharedBoard  # type: ignore[import-untyped]
+from api.client import Client as SharedClient  # type: ignore[import-untyped]
+from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
+from api.issue import Status as SharedStatus
 from issue_tracker_client_api.client import (
-    Board,
     BoardNotFoundError,
-    Issue,
     IssueCreateError,
     IssueNotFoundError,
-    IssueTrackerClient,
-    Status,
 )
 from issue_tracker_client_service_client.api.default import (
     create_board_boards_post,
@@ -48,30 +49,94 @@ if TYPE_CHECKING:
 NOT_FOUND = 404
 
 
-def _status_to_value(status: Status | str | None) -> str | None:
-    """Normalize a status enum or string to the wire-format string."""
+@dataclass(frozen=True)
+class _BoardModel(SharedBoard):  # type: ignore[misc]
+    """Concrete shared board returned by the adapter."""
+
+    _id: str
+    _board_name: str
+
+    @property
+    def id(self) -> str:
+        """Return the board ID."""
+        return self._id
+
+    @property
+    def board_name(self) -> str:
+        """Return the board name."""
+        return self._board_name
+
+
+@dataclass(frozen=True)
+class _IssueModel(SharedIssue):  # type: ignore[misc]
+    """Concrete shared issue returned by the adapter."""
+
+    _id: str
+    _title: str
+    _desc: str
+    _members: list[str] | None
+    _due_date: str | None
+    _status: SharedStatus
+    _board_id: str
+
+    @property
+    def id(self) -> str:
+        """Return the issue ID."""
+        return self._id
+
+    @property
+    def title(self) -> str:
+        """Return the issue title."""
+        return self._title
+
+    @property
+    def desc(self) -> str:
+        """Return the issue description."""
+        return self._desc
+
+    @property
+    def members(self) -> list[str] | None:
+        """Return the issue members."""
+        return self._members
+
+    @property
+    def due_date(self) -> str | None:
+        """Return the issue due date."""
+        return self._due_date
+
+    @property
+    def status(self) -> SharedStatus:
+        """Return the issue status."""
+        return self._status
+
+    @property
+    def board_id(self) -> str:
+        """Return the owning board ID."""
+        return self._board_id
+
+
+def _status_to_value(status: SharedStatus | None) -> str | None:
+    """Return the wire value for a shared status enum."""
     if status is None:
         return None
-    if isinstance(status, Status):
-        return status.value
-    return status
+    return cast("str", status.value)
 
 
-def _to_board(board: BoardOut) -> Board:
-    """Convert a wire-format BoardOut into the local API Board."""
-    return Board(id=board.id, name=board.board_name)
+def _to_board(board: BoardOut) -> SharedBoard:
+    """Convert a wire-format BoardOut into a shared board."""
+    return _BoardModel(_id=board.id, _board_name=board.board_name)
 
 
-def _to_issue(issue: IssueOut) -> Issue:
-    """Convert a wire-format IssueOut into the local API Issue."""
-    return Issue(
-        id=issue.id,
-        board_id=issue.board_id,
-        title=issue.title,
-        desc=issue.desc,
-        status=Status(issue.status),
-        members=issue.members,
-        due_date=issue.due_date,
+def _to_issue(issue: IssueOut) -> SharedIssue:
+    """Convert a wire-format IssueOut into a shared issue."""
+    return _IssueModel(
+        _id=issue.id,
+        _board_id=issue.board_id,
+        _title=issue.title,
+        _desc=issue.desc,
+        _status=SharedStatus(issue.status),
+        _members=issue.members,
+        _due_date=issue.due_date,
     )
 
 
@@ -93,7 +158,7 @@ def _raise_unexpected_board_error(board_id: str, exc: errors.UnexpectedStatus) -
     raise RuntimeError(msg) from exc
 
 
-class ServiceClientAdapter(IssueTrackerClient):
+class ServiceClientAdapter(SharedClient):  # type: ignore[misc]
     """Adapter that delegates shared-API calls to the remote FastAPI service."""
 
     def __init__(self, base_url: str, session_id: str | None = None) -> None:
@@ -102,7 +167,7 @@ class ServiceClientAdapter(IssueTrackerClient):
         self._session_id: str | Unset = session_id if session_id is not None else UNSET
         self._client = Client(base_url=base_url, raise_on_unexpected_status=True)
 
-    def get_boards(self) -> Iterator[Board]:
+    def get_boards(self) -> Iterator[SharedBoard]:
         """Return an iterator of boards from the remote service."""
         try:
             response = get_boards_boards_get.sync(
@@ -119,7 +184,7 @@ class ServiceClientAdapter(IssueTrackerClient):
 
         return iter(_to_board(board) for board in response)
 
-    def get_board(self, board_id: str) -> Board:
+    def get_board(self, board_id: str) -> SharedBoard:
         """Return the board identified by *board_id*."""
         try:
             response = get_board_boards_board_id_get.sync(
@@ -142,8 +207,8 @@ class ServiceClientAdapter(IssueTrackerClient):
     def get_issues(
         self,
         board_id: str,
-        status: Status | None = None,
-    ) -> Iterator[Issue]:
+        status: SharedStatus | None = None,
+    ) -> Iterator[SharedIssue]:
         """Return issues on *board_id*, optionally filtered by *status*."""
         try:
             response = get_issues_boards_board_id_issues_get.sync(
@@ -166,7 +231,7 @@ class ServiceClientAdapter(IssueTrackerClient):
             issues = [issue for issue in issues if issue.status == status]
         return iter(issues)
 
-    def get_issue(self, issue_id: str) -> Issue:
+    def get_issue(self, issue_id: str) -> SharedIssue:
         """Return the issue identified by *issue_id*."""
         try:
             response = get_issue_issues_issue_id_get.sync(
@@ -193,8 +258,8 @@ class ServiceClientAdapter(IssueTrackerClient):
         desc: str | None = None,
         members: list[str] | None = None,
         due_date: str | None = None,
-        status: Status = Status.TO_DO,
-    ) -> Issue:
+        status: SharedStatus = SharedStatus.TO_DO,
+    ) -> SharedIssue:
         """Create a new issue in the given board."""
         payload = CreateIssueIn(
             title=title,
@@ -236,9 +301,9 @@ class ServiceClientAdapter(IssueTrackerClient):
         desc: str | None = None,
         members: list[str] | None = None,
         due_date: str | None = None,
-        status: Status | None = None,
+        status: SharedStatus | None = None,
         board_id: str | None = None,
-    ) -> Issue:
+    ) -> SharedIssue:
         """Update the issue identified by *issue_id*."""
         status_value = _status_to_value(status)
         payload = UpdateIssueIn(
@@ -272,7 +337,7 @@ class ServiceClientAdapter(IssueTrackerClient):
 
         return _to_issue(response)
 
-    def create_board(self, name: str) -> Board:
+    def create_board(self, name: str) -> SharedBoard:
         """Create a new board and return it."""
         payload = CreateBoardIn(name=name)
         try:
@@ -291,7 +356,7 @@ class ServiceClientAdapter(IssueTrackerClient):
 
         return _to_board(response)
 
-    def update_board(self, board_id: str, name: str | None = None) -> Board:
+    def update_board(self, board_id: str, name: str | None = None) -> SharedBoard:
         """Update the board identified by *board_id*."""
         payload = UpdateBoardIn(name=name if name is not None else UNSET)
         try:

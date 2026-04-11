@@ -2,20 +2,34 @@
 
 import os
 import secrets
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated, Protocol, cast
+from typing import Annotated, cast
 
+from api.board import Board as SharedBoard  # type: ignore[import-untyped]
+from api.client import Client as SharedClient  # type: ignore[import-untyped]
+from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
+from api.issue import Status as SharedStatus
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
+from issue_tracker_client_api.client import (
+    Board as LocalBoard,
+)
 from issue_tracker_client_api.client import (
     BoardNotFoundError,
     IssueCreateError,
     IssueNotFoundError,
 )
+from issue_tracker_client_api.client import (
+    Issue as LocalIssue,
+)
+from issue_tracker_client_api.client import (
+    Status as LocalStatus,
+)
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
+
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AuthStatusOut,
@@ -81,99 +95,23 @@ app.add_middleware(
 )
 
 
-class _SharedBoardLike(Protocol):
-    """Structural type for the shared board shape."""
-
-    @property
-    def id(self) -> str: ...
-
-    @property
-    def name(self) -> str: ...
-
-
-class _SharedIssueLike(Protocol):
-    """Structural type for the shared issue shape."""
-
-    @property
-    def id(self) -> str: ...
-
-    @property
-    def title(self) -> str: ...
-
-    @property
-    def desc(self) -> str: ...
-
-    @property
-    def members(self) -> list[str] | None: ...
-
-    @property
-    def due_date(self) -> str | None: ...
-
-    @property
-    def status(self) -> object: ...
-
-    @property
-    def board_id(self) -> str: ...
+def _coerce_status(status: SharedStatus | LocalStatus | str) -> SharedStatus:
+    """Normalize the remaining local/shared status variants to SharedStatus."""
+    if isinstance(status, SharedStatus):
+        return status
+    if isinstance(status, LocalStatus):
+        return SharedStatus(status.value)
+    return SharedStatus(status)
 
 
-class _SharedClientLike(Protocol):
-    """Structural type for the shared client shape."""
-
-    def get_boards(self) -> Iterable[_SharedBoardLike]: ...
-
-    def get_board(self, board_id: str) -> _SharedBoardLike: ...
-
-    def create_board(self, name: str) -> _SharedBoardLike: ...
-
-    def update_board(
-        self,
-        board_id: str,
-        name: str | None = None,
-    ) -> _SharedBoardLike: ...
-
-    def delete_board(self, board_id: str) -> bool: ...
-
-    def get_issues(self, board_id: str) -> Iterable[_SharedIssueLike]: ...
-
-    def get_issue(self, issue_id: str) -> _SharedIssueLike: ...
-
-    def create_issue(  # noqa: PLR0913
-        self,
-        title: str,
-        board_id: str,
-        desc: str | None = None,
-        members: list[str] | None = None,
-        due_date: str | None = None,
-        status: object = None,
-    ) -> _SharedIssueLike: ...
-
-    def update_issue(  # noqa: PLR0913
-        self,
-        issue_id: str,
-        title: str | None = None,
-        desc: str | None = None,
-        members: list[str] | None = None,
-        due_date: str | None = None,
-        status: object = None,
-        board_id: str | None = None,
-    ) -> _SharedIssueLike: ...
-
-    def delete_issue(self, issue_id: str) -> bool: ...
-
-
-def _status_to_str(status: object) -> str:
-    """Serialize either an enum-like status or a plain string."""
-    return str(getattr(status, "value", status))
-
-
-def _board_to_out(board: _SharedBoardLike) -> BoardOut:
+def _board_to_out(board: SharedBoard | LocalBoard) -> BoardOut:
     """Convert a shared board object into an API response model."""
-    board_name_value = getattr(board, "board_name", None)
-    board_name = board_name_value if isinstance(board_name_value, str) else board.name
-    return BoardOut(id=board.id, board_name=board_name)
+    if isinstance(board, LocalBoard):
+        return BoardOut(id=board.id, board_name=board.name)
+    return BoardOut(id=board.id, board_name=board.board_name)
 
 
-def _issue_to_out(issue: _SharedIssueLike) -> IssueOut:
+def _issue_to_out(issue: SharedIssue | LocalIssue) -> IssueOut:
     """Convert a shared issue object into an API response model."""
     return IssueOut(
         id=issue.id,
@@ -181,14 +119,14 @@ def _issue_to_out(issue: _SharedIssueLike) -> IssueOut:
         desc=issue.desc,
         members=issue.members,
         due_date=issue.due_date,
-        status=_status_to_str(issue.status),
+        status=_coerce_status(issue.status),
         board_id=issue.board_id,
     )
 
 
 def get_client(
     session_id: str | None = Cookie(default=None),
-) -> _SharedClientLike:
+) -> SharedClient:
     """Build a concrete client for the current request."""
     api_key = _require_env("TRELLO_API_KEY")
 
@@ -196,7 +134,7 @@ def get_client(
         session = get_session(session_id)
         if session is not None:
             return cast(
-                "_SharedClientLike",
+                "SharedClient",
                 DefaultIssueTrackerClient(
                     api_key=api_key,
                     token=session.access_token,
@@ -205,12 +143,12 @@ def get_client(
 
     token = _require_env("TRELLO_API_TOKEN")
     return cast(
-        "_SharedClientLike",
+        "SharedClient",
         DefaultIssueTrackerClient(api_key=api_key, token=token),
     )
 
 
-ClientDependency = Annotated[_SharedClientLike, Depends(get_client)]
+ClientDependency = Annotated[SharedClient, Depends(get_client)]
 
 
 @app.get("/")

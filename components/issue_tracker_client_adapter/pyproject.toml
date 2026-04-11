@@ -2,7 +2,11 @@
 name = "issue-tracker-client-adapter"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["issue-tracker-client-api", "issue-tracker-client-service-client"]
+dependencies = [
+    "issue-tracker-client-api",
+    "issue-tracker-client-service-client",
+    "ospd-issue-tracker-api",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -14,3 +18,4 @@ packages = ["src/issue_tracker_client_adapter"]
 [tool.uv.sources]
 issue-tracker-client-api = { workspace = true }
 issue-tracker-client-service-client = { workspace = true }
+ospd-issue-tracker-api = { git = "https://github.com/tatyanacthomas/ospd_issue_tracker.git", branch = "main" }

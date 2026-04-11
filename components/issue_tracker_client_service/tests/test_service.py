@@ -1,10 +1,10 @@
 """Unit tests for the issue tracker client service."""
 
 from dataclasses import dataclass
-from enum import Enum
 from unittest.mock import patch
 
 import pytest
+from api.issue import Status as SharedStatus  # type: ignore[import-untyped]
 from fastapi.testclient import TestClient
 from issue_tracker_client_api.client import BoardNotFoundError, IssueNotFoundError
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
@@ -103,14 +103,6 @@ def test_auth_token_missing_token_returns_422() -> None:
     assert response.status_code == HTTP_UNPROCESSABLE_ENTITY
 
 
-class FakeStatus(Enum):
-    """Fake shared status values."""
-
-    TO_DO = "to_do"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-
-
 @dataclass
 class FakeBoard:
     """Fake board model."""
@@ -128,7 +120,7 @@ class FakeIssue:
     desc: str
     members: list[str] | None
     due_date: str | None
-    status: FakeStatus
+    status: SharedStatus
     board_id: str
 
 
@@ -148,7 +140,7 @@ class FakeClient:
                 desc="Body 1",
                 members=["dev1"],
                 due_date=None,
-                status=FakeStatus.TO_DO,
+                status=SharedStatus.TO_DO,
                 board_id="board-1",
             ),
             "issue-2": FakeIssue(
@@ -157,7 +149,7 @@ class FakeClient:
                 desc="Body 2",
                 members=None,
                 due_date="2026-04-15",
-                status=FakeStatus.IN_PROGRESS,
+                status=SharedStatus.IN_PROGRESS,
                 board_id="board-1",
             ),
         }
@@ -206,7 +198,7 @@ class FakeClient:
         desc: str | None = None,
         members: list[str] | None = None,
         due_date: str | None = None,
-        status: str | FakeStatus = FakeStatus.TO_DO,
+        status: SharedStatus | str = SharedStatus.TO_DO,
     ) -> FakeIssue:
         issue = FakeIssue(
             id="issue-3",
@@ -216,8 +208,8 @@ class FakeClient:
             due_date=due_date,
             status=(
                 status
-                if isinstance(status, FakeStatus)
-                else FakeStatus(status)
+                if isinstance(status, SharedStatus)
+                else SharedStatus(status)
             ),
             board_id=board_id,
         )
@@ -231,7 +223,7 @@ class FakeClient:
         desc: str | None = None,
         members: list[str] | None = None,
         due_date: str | None = None,
-        status: str | FakeStatus | None = None,
+        status: SharedStatus | str | None = None,
         board_id: str | None = None,
     ) -> FakeIssue:
         issue = self.get_issue(issue_id)
@@ -245,8 +237,8 @@ class FakeClient:
                 issue.status
                 if status is None
                 else status
-                if isinstance(status, FakeStatus)
-                else FakeStatus(status)
+                if isinstance(status, SharedStatus)
+                else SharedStatus(status)
             ),
             board_id=board_id or issue.board_id,
         )

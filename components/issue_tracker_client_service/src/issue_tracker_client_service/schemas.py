@@ -1,7 +1,6 @@
 """Pydantic schemas for request and response bodies."""
 
-from typing import Literal
-
+from api.issue import Status as SharedStatus  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 
@@ -26,7 +25,7 @@ class IssueOut(BaseModel):
     desc: str
     members: list[str] | None
     due_date: str | None
-    status: str
+    status: SharedStatus
     board_id: str
 
 
@@ -49,7 +48,7 @@ class CreateIssueIn(BaseModel):
     desc: str | None = None
     members: list[str] | None = None
     due_date: str | None = None
-    status: Literal["to_do", "in_progress", "completed"] = "to_do"
+    status: SharedStatus = SharedStatus.TO_DO
 
 
 class UpdateIssueIn(BaseModel):
@@ -59,7 +58,7 @@ class UpdateIssueIn(BaseModel):
     desc: str | None = None
     members: list[str] | None = None
     due_date: str | None = None
-    status: Literal["to_do", "in_progress", "completed"] | None = None
+    status: SharedStatus | None = None
     board_id: str | None = None
 
 
