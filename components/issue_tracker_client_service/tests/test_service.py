@@ -1,11 +1,12 @@
 """Unit tests for the issue tracker client service."""
 
 from dataclasses import dataclass
-from enum import Enum
 from unittest.mock import patch
 
 import pytest
+from api.issue import Status as SharedStatus  # type: ignore[import-untyped]
 from fastapi.testclient import TestClient
+from issue_tracker_client_api.client import BoardNotFoundError, IssueNotFoundError
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_service.app import app
 from issue_tracker_client_service.auth import consume_state, create_state
@@ -18,18 +19,15 @@ pytestmark = pytest.mark.unit
 HTTP_OK = 200
 HTTP_FOUND = 302
 HTTP_BAD_REQUEST = 400
+HTTP_NOT_FOUND = 404
 HTTP_UNPROCESSABLE_ENTITY = 422
 HTTP_INTERNAL_SERVER_ERROR = 500
 
+EXPECTED_BOARD_COUNT = 2
 EXPECTED_ISSUE_COUNT = 2
+SERVICE_ENV = {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"}
 
-# Create a TestClient instance for making requests
 client = TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
 
 
 def test_health() -> None:
@@ -38,11 +36,6 @@ def test_health() -> None:
 
     assert response.status_code == HTTP_OK
     assert response.json() == {"status": "ok"}
-
-
-# ---------------------------------------------------------------------------
-# Auth
-# ---------------------------------------------------------------------------
 
 
 def test_create_and_consume_state() -> None:
@@ -101,7 +94,7 @@ def test_auth_token_saves_session() -> None:
 
     session = get_session(data["session_id"])
     assert session is not None
-    assert session.access_token == "trello-user-token"  # noqa: S105 — test credential
+    assert session.access_token == "trello-user-token"  # noqa: S105
 
 
 def test_auth_token_missing_token_returns_422() -> None:
@@ -110,121 +103,279 @@ def test_auth_token_missing_token_returns_422() -> None:
     assert response.status_code == HTTP_UNPROCESSABLE_ENTITY
 
 
-# ---------------------------------------------------------------------------
-# Fake client
-# ---------------------------------------------------------------------------
+@dataclass
+class FakeBoard:
+    """Fake board model."""
 
-
-class FakeIssueState(Enum):
-    """Fake issue states."""
-
-    OPEN = "open"
-    CLOSED = "closed"
+    id: str
+    board_name: str
 
 
 @dataclass
 class FakeIssue:
     """Fake issue model."""
 
-    id: int
+    id: str
     title: str
-    body: str
-    state: FakeIssueState
-
-
-@dataclass
-class FakeComment:
-    """Fake comment model."""
-
-    id: int
-    body: str
+    desc: str
+    members: list[str] | None
+    due_date: str | None
+    status: SharedStatus
+    board_id: str
 
 
 class FakeClient:
-    """Fake client for endpoint tests."""
+    """Fake shared-contract client for endpoint tests."""
 
-    def list_issues(self, _board: str) -> list[FakeIssue]:
-        """Return fake issues."""
-        return [
-            FakeIssue(1, "Issue 1", "Body 1", FakeIssueState.OPEN),
-            FakeIssue(2, "Issue 2", "Body 2", FakeIssueState.CLOSED),
-        ]
+    def __init__(self) -> None:
+        """Seed fake boards and issues for endpoint tests."""
+        self._boards = {
+            "board-1": FakeBoard(id="board-1", board_name="Platform"),
+            "board-2": FakeBoard(id="board-2", board_name="Ops"),
+        }
+        self._issues = {
+            "issue-1": FakeIssue(
+                id="issue-1",
+                title="Issue 1",
+                desc="Body 1",
+                members=["dev1"],
+                due_date=None,
+                status=SharedStatus.TO_DO,
+                board_id="board-1",
+            ),
+            "issue-2": FakeIssue(
+                id="issue-2",
+                title="Issue 2",
+                desc="Body 2",
+                members=None,
+                due_date="2026-04-15",
+                status=SharedStatus.IN_PROGRESS,
+                board_id="board-1",
+            ),
+        }
 
-    def get_issue(self, _board: str, _issue_id: int) -> FakeIssue:
-        """Return a fake issue."""
-        return FakeIssue(1, "Issue 1", "Body 1", FakeIssueState.OPEN)
+    def get_boards(self) -> list[FakeBoard]:
+        return list(self._boards.values())
 
-    def create_issue(self, _board: str, title: str, body: str) -> FakeIssue:
-        """Return a fake created issue."""
-        return FakeIssue(3, title, body, FakeIssueState.OPEN)
+    def get_board(self, board_id: str) -> FakeBoard:
+        try:
+            return self._boards[board_id]
+        except KeyError as exc:
+            raise BoardNotFoundError(board_id) from exc
 
-    def close_issue(self, _board: str, _issue_id: int) -> bool:
-        """Return success."""
+    def create_board(self, name: str) -> FakeBoard:
+        board = FakeBoard(id="board-3", board_name=name)
+        self._boards[board.id] = board
+        return board
+
+    def update_board(self, board_id: str, name: str | None = None) -> FakeBoard:
+        board = self.get_board(board_id)
+        updated = FakeBoard(id=board.id, board_name=name or board.board_name)
+        self._boards[board_id] = updated
+        return updated
+
+    def delete_board(self, board_id: str) -> bool:
+        if board_id not in self._boards:
+            raise BoardNotFoundError(board_id)
+        del self._boards[board_id]
         return True
 
-    def add_comment(self, _board: str, _issue_id: int, body: str) -> FakeComment:
-        """Return a fake comment."""
-        return FakeComment(10, body)
+    def get_issues(self, board_id: str) -> list[FakeIssue]:
+        return [
+            issue for issue in self._issues.values() if issue.board_id == board_id
+        ]
 
+    def get_issue(self, issue_id: str) -> FakeIssue:
+        try:
+            return self._issues[issue_id]
+        except KeyError as exc:
+            raise IssueNotFoundError(issue_id) from exc
 
-# ---------------------------------------------------------------------------
-# Issue endpoints
-# ---------------------------------------------------------------------------
+    def create_issue(  # noqa: PLR0913
+        self,
+        title: str,
+        board_id: str,
+        desc: str | None = None,
+        members: list[str] | None = None,
+        due_date: str | None = None,
+        status: SharedStatus | str = SharedStatus.TO_DO,
+    ) -> FakeIssue:
+        issue = FakeIssue(
+            id="issue-3",
+            title=title,
+            desc=desc or "",
+            members=members,
+            due_date=due_date,
+            status=(
+                status
+                if isinstance(status, SharedStatus)
+                else SharedStatus(status)
+            ),
+            board_id=board_id,
+        )
+        self._issues[issue.id] = issue
+        return issue
+
+    def update_issue(  # noqa: PLR0913
+        self,
+        issue_id: str,
+        title: str | None = None,
+        desc: str | None = None,
+        members: list[str] | None = None,
+        due_date: str | None = None,
+        status: SharedStatus | str | None = None,
+        board_id: str | None = None,
+    ) -> FakeIssue:
+        issue = self.get_issue(issue_id)
+        updated = FakeIssue(
+            id=issue.id,
+            title=title or issue.title,
+            desc=desc if desc is not None else issue.desc,
+            members=members if members is not None else issue.members,
+            due_date=due_date if due_date is not None else issue.due_date,
+            status=(
+                issue.status
+                if status is None
+                else status
+                if isinstance(status, SharedStatus)
+                else SharedStatus(status)
+            ),
+            board_id=board_id or issue.board_id,
+        )
+        self._issues[issue_id] = updated
+        return updated
+
+    def delete_issue(self, issue_id: str) -> bool:
+        if issue_id not in self._issues:
+            raise IssueNotFoundError(issue_id)
+        del self._issues[issue_id]
+        return True
 
 
 def test_missing_env_returns_500() -> None:
     """Missing env variables returns 500 error."""
     with patch.dict("os.environ", {}, clear=True):
-        response = client.get("/boards/test/issues")
+        response = client.get("/boards")
 
     assert response.status_code == HTTP_INTERNAL_SERVER_ERROR
 
 
-def test_list_issues_returns_data() -> None:
-    """List issues endpoint returns expected data."""
+def test_get_boards_returns_data() -> None:
+    """Shared boards endpoint returns expected data."""
     with (
-        patch.dict(
-            "os.environ",
-            {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"},
-        ),
+        patch.dict("os.environ", SERVICE_ENV),
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
             return_value=FakeClient(),
         ),
     ):
-        response = client.get("/boards/test/issues")
+        response = client.get("/boards")
+
+    assert response.status_code == HTTP_OK
+    assert len(response.json()) == EXPECTED_BOARD_COUNT
+
+
+def test_get_board_returns_single_board() -> None:
+    """Shared board endpoint returns one board."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.get("/boards/board-1")
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["board_name"] == "Platform"
+
+
+def test_create_board_returns_created_board() -> None:
+    """Shared create board endpoint returns created board."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.post("/boards", json={"name": "Infra"})
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["board_name"] == "Infra"
+
+
+def test_update_board_returns_updated_board() -> None:
+    """Shared update board endpoint returns updated board."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.patch("/boards/board-1", json={"name": "Platform Eng"})
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["board_name"] == "Platform Eng"
+
+
+def test_delete_board_returns_success() -> None:
+    """Shared delete board endpoint returns success."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.delete("/boards/board-1")
+
+    assert response.status_code == HTTP_OK
+    assert response.json() == {"success": True}
+
+
+def test_get_issues_returns_data() -> None:
+    """Shared list issues endpoint returns expected data."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.get("/boards/board-1/issues")
 
     assert response.status_code == HTTP_OK
     assert len(response.json()) == EXPECTED_ISSUE_COUNT
 
 
 def test_get_issue_returns_single_issue() -> None:
-    """Get issue endpoint returns one issue."""
+    """Shared issue endpoint returns one issue."""
     with (
-        patch.dict(
-            "os.environ",
-            {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"},
-        ),
+        patch.dict("os.environ", SERVICE_ENV),
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
             return_value=FakeClient(),
         ),
     ):
-        response = client.get("/boards/test/issues/1")
+        response = client.get("/issues/issue-1")
 
     assert response.status_code == HTTP_OK
-    assert response.json()["id"] == 1
+    assert response.json()["id"] == "issue-1"
 
 
 def test_create_issue_returns_created_issue() -> None:
-    """Create issue endpoint returns created issue."""
+    """Shared create issue endpoint returns created issue."""
     with (
-        patch.dict(
-            "os.environ",
-            {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"},
-        ),
+        patch.dict("os.environ", SERVICE_ENV),
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
@@ -232,58 +383,64 @@ def test_create_issue_returns_created_issue() -> None:
         ),
     ):
         response = client.post(
-            "/boards/test/issues",
-            json={"title": "New", "body": "Body"},
+            "/boards/board-1/issues",
+            json={"title": "New", "desc": "Body", "status": "completed"},
         )
 
     assert response.status_code == HTTP_OK
     assert response.json()["title"] == "New"
+    assert response.json()["status"] == "completed"
 
 
-def test_close_issue_returns_success() -> None:
-    """Close issue endpoint returns success."""
+def test_update_issue_returns_updated_issue() -> None:
+    """Shared update issue endpoint returns updated issue."""
     with (
-        patch.dict(
-            "os.environ",
-            {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"},
-        ),
+        patch.dict("os.environ", SERVICE_ENV),
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
             return_value=FakeClient(),
         ),
     ):
-        response = client.post("/boards/test/issues/1/close")
+        response = client.patch(
+            "/issues/issue-1",
+            json={"status": "in_progress", "desc": "Updated body"},
+        )
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["status"] == "in_progress"
+    assert response.json()["desc"] == "Updated body"
+
+
+def test_delete_issue_returns_success() -> None:
+    """Shared delete issue endpoint returns success."""
+    with (
+        patch.dict("os.environ", SERVICE_ENV),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=FakeClient(),
+        ),
+    ):
+        response = client.delete("/issues/issue-1")
 
     assert response.status_code == HTTP_OK
     assert response.json() == {"success": True}
 
 
-def test_add_comment_returns_comment() -> None:
-    """Add comment endpoint returns created comment."""
+def test_get_issue_returns_404_when_missing() -> None:
+    """Shared issue endpoint returns 404 when the issue is missing."""
     with (
-        patch.dict(
-            "os.environ",
-            {"TRELLO_API_KEY": "key", "TRELLO_API_TOKEN": "token"},
-        ),
+        patch.dict("os.environ", SERVICE_ENV),
         patch.object(
             app_module,
             "DefaultIssueTrackerClient",
             return_value=FakeClient(),
         ),
     ):
-        response = client.post(
-            "/boards/test/issues/1/comments",
-            json={"body": "Nice"},
-        )
+        response = client.get("/issues/missing")
 
-    assert response.status_code == HTTP_OK
-    assert response.json() == {"id": 10, "body": "Nice"}
-
-
-# ---------------------------------------------------------------------------
-# Session
-# ---------------------------------------------------------------------------
+    assert response.status_code == HTTP_NOT_FOUND
 
 
 def test_get_client_uses_session_token() -> None:

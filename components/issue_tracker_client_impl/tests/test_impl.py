@@ -30,6 +30,7 @@ from issue_tracker_client_api.client import (
     IssueNotFoundError,
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
+from issue_tracker_client_impl.status_map import resolve_list_name
 
 pytestmark = pytest.mark.unit
 
@@ -37,6 +38,7 @@ FAKE_KEY = "fake-trello-api-key"
 FAKE_TOKEN = "fake-trello-api-token" # noqa: S105
 BOARD_ID = "board-abc123"
 BOARD_ID_2 = "board-def456"
+BOARD_ALIAS = "board-shortlink"
 CARD_ID = "abcdef1234567890abcdef12"
 LIST_ID_TODO = "list-todo-111"
 LIST_ID_INPROG = "list-inprog-222"
@@ -147,6 +149,12 @@ def test_init_raises_when_api_token_missing() -> None:
     """Construction raises TypeError when token is not provided."""
     with pytest.raises(TypeError):
         DefaultIssueTrackerClient(api_key=FAKE_KEY)  # type: ignore[call-arg]
+
+
+def test_resolve_list_name_raises_for_unknown_status() -> None:
+    """resolve_list_name raises ValueError for a non-Status input."""
+    with pytest.raises(ValueError, match="Unknown status"):
+        resolve_list_name("not-a-status")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +305,21 @@ def test_get_issues_returns_issues_with_board_id(
     assert len(issues) == 2  # noqa: PLR2004
     assert all(isinstance(i, Issue) for i in issues)
     assert all(i.board_id == BOARD_ID for i in issues)
+
+
+def test_get_issues_prefers_canonical_board_id_from_card(
+    client: DefaultIssueTrackerClient,
+    mock_requests: MagicMock,
+) -> None:
+    """get_issues returns Trello's canonical idBoard when it is present."""
+    mock_requests.get.side_effect = [
+        _resp(_LISTS),
+        _resp([_card(board_id=BOARD_ID)]),
+    ]
+
+    issues = list(client.get_issues(BOARD_ALIAS))
+
+    assert issues[0].board_id == BOARD_ID
 
 
 def test_get_issues_maps_list_name_to_status(
@@ -523,13 +546,27 @@ def test_create_issue_returns_issue_with_board_id(
     assert issue.status == Status.TO_DO
 
 
+def test_create_issue_prefers_canonical_board_id_from_card(
+    client: DefaultIssueTrackerClient,
+    mock_requests: MagicMock,
+) -> None:
+    """create_issue returns Trello's canonical idBoard when it is present."""
+    mock_requests.get.return_value = _resp(_LISTS)
+    mock_requests.post.return_value = _resp(
+        _card(board_id=BOARD_ID, name="New issue", desc="body")
+    )
+
+    issue = client.create_issue("New issue", BOARD_ALIAS, desc="body")
+
+    assert issue.board_id == BOARD_ID
+
+
 def test_create_issue_raises_when_no_lists(
     client: DefaultIssueTrackerClient,
     mock_requests: MagicMock,
 ) -> None:
     """create_issue raises ValueError when the board has no open lists."""
     mock_requests.get.return_value = _resp([])
-
     with pytest.raises(ValueError, match="no open lists"):
         client.create_issue("Title", BOARD_ID, desc="Desc")
 

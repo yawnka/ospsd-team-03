@@ -91,9 +91,10 @@ class DefaultIssueTrackerClient(Client):  # type: ignore[misc]
         self, card: dict[str, Any], board_id: str, list_name: str
     ) -> Issue:
         members: list[str] | None = card.get("idMembers") or None
+        canonical_board_id = card.get("idBoard", board_id)
         return Issue(
             id=card["id"],
-            board_id=board_id,
+            board_id=canonical_board_id,
             title=card["name"],
             desc=card.get("desc", ""),
             status=resolve_status(list_name),
@@ -135,7 +136,7 @@ class DefaultIssueTrackerClient(Client):  # type: ignore[misc]
         cards: list[dict[str, Any]] = self._get(
             f"boards/{board_id}/cards",
             filter="open",
-            fields="id,name,desc,idList,idMembers,due",
+            fields="id,idBoard,name,desc,idList,idMembers,due",
         )
 
         issues: list[Issue] = []

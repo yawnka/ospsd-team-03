@@ -167,23 +167,31 @@ def test_full_workflow_against_real_trello() -> None:
     client = _api.get_client()
     assert isinstance(client, DefaultIssueTrackerClient)
 
-    # 1. list_issues
-    issues = client.list_issues(board_id)
+    # 1. get_issues
+    issues = list(client.get_issues(board_id))
     assert isinstance(issues, list)
 
     # 2. create_issue
-    new_issue = client.create_issue(board_id, "E2E Test Card", "Created by E2E test")
+    new_issue = client.create_issue(
+        title="E2E Test Card",
+        board_id=board_id,
+        desc="Created by E2E test",
+    )
     assert new_issue.title == "E2E Test Card"
+    assert new_issue.board_id
+    assert new_issue.desc == "Created by E2E test"
 
     # 3. get_issue
-    fetched = client.get_issue(board_id, new_issue.id)
+    fetched = client.get_issue(new_issue.id)
     assert fetched.id == new_issue.id
     assert fetched.title == "E2E Test Card"
+    assert fetched.board_id == new_issue.board_id
 
-    # 4. add_comment
-    comment = client.add_comment(board_id, new_issue.id, "E2E comment")
-    assert comment.body == "E2E comment"
+    # 4. update_issue
+    updated = client.update_issue(new_issue.id, desc="Updated by E2E test")
+    assert updated.id == new_issue.id
+    assert updated.desc == "Updated by E2E test"
 
-    # 5. close_issue
-    result = client.close_issue(board_id, new_issue.id)
+    # 5. delete_issue (archive)
+    result = client.delete_issue(new_issue.id)
     assert result is True
