@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import issue_tracker_client_api.client as _api
 import pytest
+from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
-from issue_tracker_client_api.client import IssueTrackerClient
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
 pytestmark = pytest.mark.integration
@@ -56,12 +56,12 @@ def test_importing_adapter_registers_factory() -> None:
 
 
 def test_get_client_is_subclass_of_interface() -> None:
-    """The impl client returned by get_client() satisfies the abstract contract."""
+    """The impl client returned by get_client() satisfies the shared contract."""
     with patch.dict("os.environ", _IMPL_ENV, clear=False):
         _reimport_and_register("issue_tracker_client_impl")
         client = _api.get_client()
 
-    assert isinstance(client, IssueTrackerClient)
+    assert isinstance(client, SharedClient)
 
 
 @pytest.mark.parametrize(

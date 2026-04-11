@@ -22,12 +22,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from api.issue import Status
 from issue_tracker_client_api.client import (
     Board,
     BoardNotFoundError,
     Issue,
     IssueNotFoundError,
-    Status,
 )
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.status_map import resolve_list_name

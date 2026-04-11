@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from issue_tracker_client_api.client import Status
+from api.issue import Status  # type: ignore[import-untyped]
 
 # Maps lowercased Trello list name variants to a canonical Status enum value.
 LIST_NAME_TO_STATUS: dict[str, Status] = {
