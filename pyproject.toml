@@ -18,6 +18,7 @@ dev = [
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 src = ["components"]
+exclude = ["components/issue_tracker_client_service_client"]
 
 [tool.ruff.lint]
 select = ["ALL"]
