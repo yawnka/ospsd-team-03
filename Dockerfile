@@ -5,6 +5,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
+# git is required to install git-sourced uv dependencies (e.g. ospd-issue-tracker-api)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 # Copy workspace root config and lockfile first (better layer caching)
 COPY pyproject.toml uv.lock ./
 
@@ -33,5 +36,6 @@ ENV UV_CACHE_DIR=/home/app/.cache/uv
 
 EXPOSE 8000
 
-# Render sets PORT env var; default to 8000 for local development
-CMD ["sh", "-c", "uv run uvicorn issue_tracker_client_service.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# --no-sync prevents uv from re-syncing dev deps at runtime (builder already
+# installed production deps with --no-dev).
+CMD ["sh", "-c", "uv run --no-sync uvicorn issue_tracker_client_service.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -8,6 +8,9 @@ terraform {
     }
   }
 
+  # Lock file (.terraform.lock.hcl) is committed to pin provider versions
+  # for reproducible plans across CI and team members.
+
   # Local backend for now. Migrate to GCS in Phase 3 (CI integration).
   # backend "gcs" {
   #   bucket = "ospsd-team-03-tfstate"

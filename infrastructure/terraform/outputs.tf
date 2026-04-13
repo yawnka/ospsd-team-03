@@ -1,6 +1,6 @@
 output "service_url" {
   description = "Public URL of the Cloud Run service"
-  value       = google_cloud_run_v2_service.app.uri
+  value       = var.enable_service ? google_cloud_run_v2_service.app[0].uri : null
 }
 
 output "artifact_registry_url" {

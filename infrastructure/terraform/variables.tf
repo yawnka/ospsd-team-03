@@ -12,6 +12,14 @@ variable "region" {
   default     = "us-central1"
 }
 
+# ---------- Bootstrap control ----------
+
+variable "enable_service" {
+  description = "Set to false on first apply so secrets/IAM are created before Cloud Run. Flip to true after populating secret versions."
+  type        = bool
+  default     = true
+}
+
 # ---------- Container image ----------
 
 variable "image_tag" {
@@ -20,18 +28,9 @@ variable "image_tag" {
 }
 
 # ---------- Application env vars (required) ----------
-
-variable "trello_api_key" {
-  description = "Trello API key"
-  type        = string
-  sensitive   = true
-}
-
-variable "trello_api_token" {
-  description = "Trello API token (fallback for unauthenticated requests)"
-  type        = string
-  sensitive   = true
-}
+# NOTE: Trello API key/token are managed in Secret Manager, not as Terraform
+# variables, so their values never enter Terraform state. Populate them via:
+#   echo -n "$VALUE" | gcloud secrets versions add SECRET_ID --data-file=-
 
 variable "redirect_uri" {
   description = "OAuth callback URL (Cloud Run URL + /auth/callback)"
@@ -54,12 +53,8 @@ variable "otel_exporter_otlp_endpoint" {
   default     = ""
 }
 
-variable "otel_exporter_otlp_headers" {
-  description = "Grafana Cloud OTLP auth header. Empty = telemetry disabled."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
+# otel_exporter_otlp_headers is managed in Secret Manager (secret ID: otel-otlp-headers).
+# Populate via: echo -n "$HEADERS" | gcloud secrets versions add otel-otlp-headers --data-file=-
 
 variable "otel_service_name" {
   description = "OpenTelemetry service name."
