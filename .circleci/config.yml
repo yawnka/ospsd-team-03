@@ -190,7 +190,9 @@ jobs:
       - run:
           name: "Build and Push Docker Image"
           command: |
-            IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/issue-tracker/service"
+            REGION="$(echo "${GCP_REGION}" | tr -d '[:space:]')"
+            PROJECT="$(echo "${GCP_PROJECT_ID}" | tr -d '[:space:]')"
+            IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/issue-tracker/service"
             docker build -t "${IMAGE}:${CIRCLE_SHA1}" -t "${IMAGE}:latest" .
             docker push "${IMAGE}:${CIRCLE_SHA1}"
             docker push "${IMAGE}:latest"
