@@ -210,7 +210,7 @@ jobs:
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
             cd infrastructure/terraform
             terraform init -input=false
-            terraform plan -input=false \
+            terraform plan -input=false -lock-timeout=120s \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
 
@@ -227,7 +227,7 @@ jobs:
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
             cd infrastructure/terraform
             terraform init -input=false
-            terraform apply -auto-approve -input=false \
+            terraform apply -auto-approve -input=false -lock-timeout=120s \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
 
