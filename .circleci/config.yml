@@ -204,20 +204,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Authenticate to GCP"
+          name: "Terraform Init & Plan"
           command: |
             echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
-            echo 'export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json' >> $BASH_ENV
-      - run:
-          name: "Terraform Init"
-          command: |
             cd infrastructure/terraform
             terraform init -input=false
-      - run:
-          name: "Terraform Plan"
-          command: |
-            cd infrastructure/terraform
             terraform plan -input=false \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
@@ -229,20 +221,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Authenticate to GCP"
+          name: "Terraform Init & Apply"
           command: |
             echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
-            echo 'export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json' >> $BASH_ENV
-      - run:
-          name: "Terraform Init"
-          command: |
             cd infrastructure/terraform
             terraform init -input=false
-      - run:
-          name: "Terraform Apply"
-          command: |
-            cd infrastructure/terraform
             terraform apply -auto-approve -input=false \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
