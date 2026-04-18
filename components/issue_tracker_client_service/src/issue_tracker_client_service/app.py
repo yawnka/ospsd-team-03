@@ -30,6 +30,8 @@ from issue_tracker_client_api.client import (
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
 
+from issue_tracker_client_service.ai_router import run_ai_chat
+from issue_tracker_client_service.ai_schemas import AIChatIn, AIChatOut
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AuthStatusOut,
@@ -496,3 +498,9 @@ def delete_issue(
         ) from exc
     else:
         return SuccessOut(success=success)
+
+@app.post("/ai/chat")
+def ai_chat(payload: AIChatIn) -> AIChatOut:
+    """Handle AI chat requests for the issue tracker."""
+    client = get_client()
+    return run_ai_chat(payload=payload, issue_tracker_client=client)

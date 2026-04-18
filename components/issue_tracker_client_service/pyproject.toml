@@ -25,3 +25,6 @@ packages = ["src/issue_tracker_client_service"]
 issue-tracker-client-api = { workspace = true }
 issue-tracker-client-impl = { workspace = true }
 ospd-issue-tracker-api = { git = "https://github.com/tatyanacthomas/ospd_issue_tracker.git", branch = "main" }
+ai-client-api = { workspace = true }
+ai-client-impl = { workspace = true }
+
