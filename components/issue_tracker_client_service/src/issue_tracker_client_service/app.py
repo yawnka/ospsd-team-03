@@ -53,6 +53,9 @@ REQUIRED_ENV_VARS = (
     "OPENAI_API_KEY",
 )
 
+def _register_ai_client() -> None:
+    """Ensure AI client implementation is registered."""
+    import ai_client_impl  # noqa: F401, PLC0415
 
 def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
@@ -75,6 +78,7 @@ def _validate_required_env() -> None:
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Validate service configuration before accepting requests."""
     _validate_required_env()
+    _register_ai_client()
     yield
 
 
