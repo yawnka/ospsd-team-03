@@ -1,29 +1,15 @@
 """OpenAI implementation of the shared AI client API."""
-
-from __future__ import annotations
-
 from typing import Any
 
+from ai_client_api.client import AIClient, AIClientError
 from openai import OpenAI
-
-from ai_client_api import AIClient, AIClientError
 
 
 class OpenAIAIClient(AIClient):
     """Concrete AI client backed by the OpenAI API."""
 
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "gpt-4o-mini",
-    ) -> None:
-        """Initialize the OpenAI AI client.
-
-        Args:
-            api_key: OpenAI API key.
-            model: Model name to use for chat completions.
-
-        """
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini") -> None:
+        """Initialize the OpenAI AI client."""
         self._client = OpenAI(api_key=api_key)
         self._model = model
 
@@ -47,24 +33,18 @@ class OpenAIAIClient(AIClient):
         """
         messages: list[dict[str, str]] = []
 
-        if context is not None:
+        if context:
             messages.append(
                 {
                     "role": "system",
                     "content": (
-                        "You are an AI assistant for an issue tracker service. "
-                        "Use the provided context when it is relevant.\n\n"
+                        "You are an AI assistant for an issue tracker service.\n"
                         f"Context: {context}"
                     ),
                 }
             )
 
-        messages.append(
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        )
+        messages.append({"role": "user", "content": prompt})
 
         response = self._client.chat.completions.create(
             model=self._model,
@@ -72,19 +52,18 @@ class OpenAIAIClient(AIClient):
         )
 
         content = response.choices[0].message.content
-        if content is None:
-            msg = "OpenAI response did not contain any text content."
+        if not content:
+            msg = "OpenAI response did not contain text content."
             raise AIClientError(msg)
 
         return content.strip()
 
     @property
     def client(self) -> OpenAI:
-        """Return the underlying SDK client."""
+        """Return the underlying OpenAI SDK client."""
         return self._client
-
 
     @property
     def model(self) -> str:
-        """Return the model name."""
+        """Return the configured OpenAI model name."""
         return self._model

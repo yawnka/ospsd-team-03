@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from issue_tracker_client_api.client import Client  # noqa: TC002
-from issue_tracker_client_api.issue import Status
+from api.client import Client  # noqa: TC002
+from api.issue import Status
 
 TOOLS: list[dict[str, Any]] = [
     {

@@ -10,6 +10,8 @@ dependencies = [
     "issue-tracker-client-api",
     "issue-tracker-client-impl",
     "ospd-issue-tracker-api",
+    "ai-client-api",
+    "ai-client-impl",
     "pydantic>=2.11.7",
     "httpx>=0.27.0",
 ]

@@ -217,7 +217,6 @@ class FakeSDKClient:
         """Initialize the fake SDK client with predefined responses."""
         self.chat = FakeChat(responses)
 
-
 class FakeAIClient:
     """Fake registered AI client for tests."""
 
@@ -234,6 +233,15 @@ class FakeAIClient:
         """Return a fallback text response."""
         return "fallback response"
 
+    @property
+    def client(self) -> FakeSDKClient:
+        """Expose the fake SDK client."""
+        return self._client
+
+    @property
+    def model(self) -> str:
+        """Expose the fake model name."""
+        return self._model
 
 def test_ai_chat_returns_plain_text_when_no_tool_call() -> None:
     """Return plain text when the model does not call a tool."""
@@ -379,8 +387,9 @@ def test_ai_chat_can_create_issue() -> None:
     assert result.reply == "Created the issue 'OAuth login broken' on board board-1."
     assert len(result.actions) == 1
     assert result.actions[0].tool == "create_issue"
-    assert result.actions[0].detail == "Created issue 'OAuth login broken' "
-    "on board board-1."
+    assert result.actions[0].detail == (
+    "Created issue 'OAuth login broken' "
+    "on board board-1.")
 
 
 def test_ai_chat_can_update_issue() -> None:

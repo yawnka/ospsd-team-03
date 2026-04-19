@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from issue_tracker_client_api.client import Client  # noqa: TC002
+from typing import TYPE_CHECKING, Any
 
 from ai_client_api import get_client
+
+if TYPE_CHECKING:
+    from ai_client_api.client import AIClient
+    from api.client import Client
+
 from issue_tracker_client_service.ai_schemas import AIActionOut, AIChatIn, AIChatOut
 from issue_tracker_client_service.ai_tools import (
     TOOLS,
@@ -29,9 +32,13 @@ def _build_system_prompt() -> str:
     )
 
 
-def run_ai_chat(payload: AIChatIn, issue_tracker_client: Client) -> AIChatOut:
+def run_ai_chat(
+    payload: AIChatIn,
+    issue_tracker_client: Client,
+    ai_client: AIClient | None = None,
+    ) -> AIChatOut:
     """Run the AI workflow for a chat request."""
-    ai_client = get_client()
+    ai_client =ai_client or get_client()
 
     if not hasattr(ai_client, "_client") or not hasattr(ai_client, "_model"):
         reply = ai_client.send_message(prompt=payload.message, context=None)

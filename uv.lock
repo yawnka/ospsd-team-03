@@ -426,6 +426,8 @@ name = "issue-tracker-client-service"
 version = "0.1.0"
 source = { editable = "components/issue_tracker_client_service" }
 dependencies = [
+    { name = "ai-client-api" },
+    { name = "ai-client-impl" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "issue-tracker-client-api" },
@@ -437,6 +439,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ai-client-api", editable = "components/ai_client_api" },
+    { name = "ai-client-impl", editable = "components/ai_client_impl" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "issue-tracker-client-api", editable = "components/issue_tracker_client_api" },

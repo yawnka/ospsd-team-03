@@ -50,6 +50,7 @@ from issue_tracker_client_service.session import get_session, save_session
 REQUIRED_ENV_VARS = (
     "TRELLO_API_KEY",
     "TRELLO_API_TOKEN",
+    "OPENAI_API_KEY",
 )
 
 
@@ -500,7 +501,8 @@ def delete_issue(
         return SuccessOut(success=success)
 
 @app.post("/ai/chat")
-def ai_chat(payload: AIChatIn) -> AIChatOut:
+def ai_chat(payload: AIChatIn,  client: ClientDependency) -> AIChatOut:
     """Handle AI chat requests for the issue tracker."""
-    client = get_client()
     return run_ai_chat(payload=payload, issue_tracker_client=client)
+
+
