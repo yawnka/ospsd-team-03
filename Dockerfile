@@ -1,5 +1,5 @@
 # Stage 1: Build — install dependencies with uv
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -18,7 +18,7 @@ COPY components/ components/
 RUN uv sync --all-packages --no-dev --frozen
 
 # Stage 2: Runtime — slim image without build tools
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 

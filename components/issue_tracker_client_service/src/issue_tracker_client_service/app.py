@@ -1,5 +1,6 @@
 """FastAPI application exposing the issue tracker client over HTTP."""
 
+import logging
 import os
 import secrets
 from collections.abc import AsyncIterator
@@ -27,6 +28,7 @@ from issue_tracker_client_api.client import (
 from issue_tracker_client_api.client import (
     Status as LocalStatus,
 )
+from discord_client_impl.client import DiscordClient
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
 
@@ -50,6 +52,8 @@ REQUIRED_ENV_VARS = (
     "TRELLO_API_KEY",
     "TRELLO_API_TOKEN",
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _require_env(var_name: str) -> str:
@@ -151,6 +155,31 @@ def get_client(
 
 
 ClientDependency = Annotated[SharedClient, Depends(get_client)]
+
+
+def _get_discord_client() -> DiscordClient | None:
+    """Return a DiscordClient if credentials are configured, else None."""
+    if not os.getenv("DISCORD_BOT_TOKEN") or not os.getenv("DISCORD_GUILD_ID"):
+        return None
+    return DiscordClient()
+
+
+def _notify_discord(issue: IssueOut) -> None:
+    """Send a Discord notification for a newly created issue. Never raises."""
+    channel_id = os.getenv("DISCORD_NOTIFY_CHANNEL_ID")
+    if not channel_id:
+        return
+    discord = _get_discord_client()
+    if discord is None:
+        return
+    try:
+        text = (
+            f"New issue created: \"{issue.title}\" "
+            f"(board: {issue.board_id}, status: {issue.status})"
+        )
+        discord.send_message(channel_id, text)
+    except Exception:
+        logger.exception("Discord notification failed — issue creation unaffected")
 
 
 @app.get("/")
@@ -444,7 +473,9 @@ def create_issue(
             detail=f"Failed to create issue in board '{board_id}'",
         ) from exc
     else:
-        return _issue_to_out(issue)
+        out = _issue_to_out(issue)
+        _notify_discord(out)
+        return out
 
 
 @app.patch("/issues/{issue_id}")
