@@ -44,6 +44,7 @@ from issue_tracker_client_service.schemas import (
     UpdateIssueIn,
 )
 from issue_tracker_client_service.session import get_session, save_session
+from issue_tracker_client_service.telemetry import setup_telemetry
 
 REQUIRED_ENV_VARS = (
     "TRELLO_API_KEY",
@@ -81,6 +82,7 @@ app = FastAPI(
     description="FastAPI service exposing the issue tracker client implementation.",
     lifespan=lifespan,
 )
+setup_telemetry(app)
 
 _cors_origin = os.environ.get("ALLOWED_ORIGIN")
 # allow_credentials=True is invalid with allow_origins=["*"].
