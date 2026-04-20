@@ -10,6 +10,7 @@ runs identically in local development without an observability backend.
 """
 
 import os
+from urllib.parse import unquote
 
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
@@ -35,7 +36,7 @@ def _parse_headers(headers_str: str) -> dict[str, str]:
     for item in headers_str.split(","):
         key, sep, value = item.partition("=")
         if sep:
-            result[key.strip()] = value.strip()
+            result[unquote(key.strip())] = unquote(value.strip())
     return result
 
 
@@ -68,8 +69,11 @@ def setup_telemetry(app: FastAPI) -> None:
     trace.set_tracer_provider(tracer_provider)
 
     # ── Metrics (latency / success rate / failure rate) ───────────────────────
+    # Short export interval (10s) so metrics flush before Cloud Run
+    # scales the instance to zero (default 60s is too long for serverless).
     metric_reader = PeriodicExportingMetricReader(
-        OTLPMetricExporter(endpoint=f"{endpoint}/v1/metrics", headers=headers)
+        OTLPMetricExporter(endpoint=f"{endpoint}/v1/metrics", headers=headers),
+        export_interval_millis=10_000,
     )
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)

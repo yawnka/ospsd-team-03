@@ -40,6 +40,11 @@ def test_parse_headers_strips_whitespace() -> None:
     assert result == {"key": "value"}
 
 
+def test_parse_headers_url_decodes_values() -> None:
+    result = _parse_headers("Authorization=Basic%20dXNlcjpwYXNz")
+    assert result == {"Authorization": "Basic dXNlcjpwYXNz"}
+
+
 # ── setup_telemetry ───────────────────────────────────────────────────────────
 
 
