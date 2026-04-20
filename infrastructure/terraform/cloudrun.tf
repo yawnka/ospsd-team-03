@@ -35,6 +35,13 @@ resource "google_secret_manager_secret" "otel_otlp_headers" {
   }
 }
 
+resource "google_secret_manager_secret" "openai_api_key" {
+  secret_id = "openai-api-key"
+  replication {
+    auto {}
+  }
+}
+
 # ---------- Service account ----------
 # Cloud Run needs its SA to access Secret Manager.
 
@@ -57,6 +64,12 @@ resource "google_secret_manager_secret_iam_member" "trello_api_token" {
 
 resource "google_secret_manager_secret_iam_member" "otel_otlp_headers" {
   secret_id = google_secret_manager_secret.otel_otlp_headers.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "openai_api_key" {
+  secret_id = google_secret_manager_secret.openai_api_key.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
@@ -148,6 +161,17 @@ resource "google_cloud_run_v2_service" "app" {
         }
       }
 
+      # OpenAI API key — injected from Secret Manager
+      env {
+        name = "OPENAI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.openai_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+
       resources {
         limits = {
           cpu    = "1"
@@ -177,6 +201,7 @@ resource "google_cloud_run_v2_service" "app" {
     google_secret_manager_secret_iam_member.trello_api_key,
     google_secret_manager_secret_iam_member.trello_api_token,
     google_secret_manager_secret_iam_member.otel_otlp_headers,
+    google_secret_manager_secret_iam_member.openai_api_key,
   ]
 }
 
