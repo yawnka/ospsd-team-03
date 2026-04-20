@@ -297,13 +297,14 @@ workflows:
             - unit_test
             - integration_test
 
-  # Deploy workflow: Build image → Terraform → Health check (hw-3 branch only)
+  # Deploy workflow: Build image → Terraform → Health check
   deploy_to_cloud_run:
     jobs:
       - build:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - lint:
@@ -312,6 +313,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - type_check:
@@ -320,6 +322,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - unit_test:
@@ -328,6 +331,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - build_and_push_image:
@@ -338,6 +342,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - terraform_plan:
@@ -346,6 +351,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - terraform_apply:
@@ -354,6 +360,7 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
       - verify_health:
@@ -362,5 +369,6 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - hw-3
                 - feat/iac-terraform
