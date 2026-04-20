@@ -79,9 +79,41 @@
       ]
     },
     {
-      "title": "Failure Rate (4xx / 5xx)",
+      "title": "Client Error Rate (4xx)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\", http_status_code=~\"4..\"}[5m])) / sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\"}[5m])) * 100",
+          "legendFormat": "Client Error (4xx) %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Server Error Rate (5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -104,8 +136,8 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\", http_status_code=~\"[45]..\"}[5m])) / sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\"}[5m])) * 100",
-          "legendFormat": "Failure %",
+          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\", http_status_code=~\"5..\"}[5m])) / sum(rate(http_server_duration_milliseconds_count{service_name=\"issue-tracker-service\"}[5m])) * 100",
+          "legendFormat": "Server Error (5xx) %",
           "refId": "A"
         }
       ]
