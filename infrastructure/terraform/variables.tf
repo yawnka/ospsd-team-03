@@ -15,9 +15,9 @@ variable "region" {
 # ---------- Bootstrap control ----------
 
 variable "enable_service" {
-  description = "Set to false on first apply so secrets/IAM are created before Cloud Run. Flip to true after populating secret versions."
+  description = "Set to false on first apply so secrets/IAM are created before Cloud Run. Flip to true after populating secret versions. CI always passes true explicitly."
   type        = bool
-  default     = true
+  default     = false
 }
 
 # ---------- Container image ----------

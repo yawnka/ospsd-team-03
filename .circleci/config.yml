@@ -211,10 +211,12 @@ jobs:
             cd infrastructure/terraform
             terraform init -input=false
             terraform plan -input=false -lock-timeout=120s \
+              -var="enable_service=true" \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
 
   # Job 9: Terraform Apply — deploy infrastructure (hw-3 branch only)
+  # Persists the service URL so verify_health can read it without manual config.
   terraform_apply:
     docker:
       - image: hashicorp/terraform:1.9
@@ -228,22 +230,39 @@ jobs:
             cd infrastructure/terraform
             terraform init -input=false
             terraform apply -auto-approve -input=false -lock-timeout=120s \
+              -var="enable_service=true" \
               -var="image_tag=${CIRCLE_SHA1}" \
               -var="redirect_uri=${TF_VAR_redirect_uri}"
+      - run:
+          name: "Export service URL"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+            cd infrastructure/terraform
+            terraform output -raw service_url > /tmp/service_url.txt
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - service_url.txt
 
   # Job 10: Verify health after deployment
+  # Reads the Cloud Run URL from Terraform output (persisted by terraform_apply).
   verify_health:
     docker:
       - image: cimg/base:current
     steps:
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
           name: "Wait for Cloud Run revision to become ready"
           command: sleep 30
       - run:
           name: "Health Check"
           command: |
+            SERVICE_URL=$(cat /tmp/workspace/service_url.txt)
+            echo "Checking health at: ${SERVICE_URL}/health"
             for i in 1 2 3 4 5; do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DEPLOY_URL}/health" || true)
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health" || true)
               if [ "$STATUS" = "200" ]; then
                 echo "Health check passed (attempt $i)"
                 exit 0
