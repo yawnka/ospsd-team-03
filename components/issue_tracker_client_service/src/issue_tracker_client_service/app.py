@@ -178,7 +178,7 @@ def _notify_discord(issue: IssueOut) -> None:
             f"(board: {issue.board_id}, status: {issue.status})"
         )
         discord.send_message(channel_id, text)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.exception("Discord notification failed — issue creation unaffected")
 
 
