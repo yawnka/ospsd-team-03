@@ -32,6 +32,8 @@ from issue_tracker_client_api.client import (
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
 
+from issue_tracker_client_service.ai_router import run_ai_chat
+from issue_tracker_client_service.ai_schemas import AIChatIn, AIChatOut
 from issue_tracker_client_service.auth import consume_state, create_state
 from issue_tracker_client_service.schemas import (
     AuthStatusOut,
@@ -51,8 +53,12 @@ from issue_tracker_client_service.telemetry import setup_telemetry
 REQUIRED_ENV_VARS = (
     "TRELLO_API_KEY",
     "TRELLO_API_TOKEN",
+    "OPENAI_API_KEY",
 )
 
+def _register_ai_client() -> None:
+    """Ensure AI client implementation is registered."""
+    import ai_client_impl  # noqa: F401, PLC0415
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +83,7 @@ def _validate_required_env() -> None:
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Validate service configuration before accepting requests."""
     _validate_required_env()
+    _register_ai_client()
     yield
 
 
@@ -529,3 +536,10 @@ def delete_issue(
         ) from exc
     else:
         return SuccessOut(success=success)
+
+@app.post("/ai/chat")
+def ai_chat(payload: AIChatIn,  client: ClientDependency) -> AIChatOut:
+    """Handle AI chat requests for the issue tracker."""
+    return run_ai_chat(payload=payload, issue_tracker_client=client)
+
+

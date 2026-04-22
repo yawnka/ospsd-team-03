@@ -3,13 +3,16 @@
 import importlib
 import sys
 from collections.abc import Generator
+from typing import Any
 from unittest.mock import patch
 
 import issue_tracker_client_api.client as _api
 import pytest
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
+from fastapi.testclient import TestClient
 from issue_tracker_client_adapter.adapter import ServiceClientAdapter
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
+from issue_tracker_client_service.app import app
 
 pytestmark = pytest.mark.integration
 
@@ -94,3 +97,66 @@ def test_registered_client_exposes_interface_methods(
     )
     for method in expected:
         assert callable(getattr(client, method))
+
+HTTP_OK = 200
+def test_ai_chat_plain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify /ai/chat returns a response using the injected AI client."""
+
+    class FakeAIClient:
+        def send_message(
+            self,
+            prompt: str,
+            context: dict[str, Any] | None = None,
+        ) -> str:
+            _ = prompt, context
+            return "Hello from AI"
+
+    def fake_get_ai_client() -> FakeAIClient:
+        return FakeAIClient()
+
+    monkeypatch.setattr(
+        "issue_tracker_client_service.ai_router.get_client",
+        fake_get_ai_client,
+    )
+
+    with TestClient(app) as client:
+        resp = client.post("/ai/chat", json={"message": "hi"})
+
+    assert resp.status_code == HTTP_OK
+    assert resp.json() == {"reply": "Hello from AI", "actions": []}
+
+def test_ai_chat_tool_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify /ai/chat handles a tool-call response from the AI client."""
+
+    class FakeAIClient:
+        def send_message(
+            self,
+            prompt: str,
+            context: dict[str, Any] | None = None,
+        ) -> dict[str, object]:
+            _ = prompt, context
+            return {
+                "tool": "get_boards",
+                "args": {},
+            }
+
+    class FakeIssueTracker:
+        def get_boards(self) -> list[object]:
+            return []
+
+    def fake_get_ai_client() -> FakeAIClient:
+        return FakeAIClient()
+
+    def fake_get_issue_tracker() -> FakeIssueTracker:
+        return FakeIssueTracker()
+
+    monkeypatch.setattr("ai_client_api.get_client", fake_get_ai_client)
+    monkeypatch.setattr(
+        "issue_tracker_client_service.app.get_client",
+        fake_get_issue_tracker,
+    )
+
+    client = TestClient(app)
+
+    resp = client.post("/ai/chat", json={"message": "list boards"})
+    assert resp.status_code == HTTP_OK
