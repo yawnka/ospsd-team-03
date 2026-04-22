@@ -41,9 +41,10 @@ ignore = [
 ]
 
 "components/**/tests/**/*.py" = [
+    "D100",
     "D101",
     "D102",
-    "D100",
+    "D103",  # test functions don't need docstrings
     "INP001",
     "S101",
     "SLF001",
@@ -64,6 +65,12 @@ exclude = [
   "^components/.*/tests/",
   "^components/issue_tracker_client_service_client/issue_tracker_client_service_client/",
 ]
+
+# opentelemetry-instrumentation-fastapi ships without complete type stubs.
+# Narrowed to the specific module actually imported rather than the whole namespace.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.instrumentation.fastapi"]
+ignore_missing_imports = true
 
 # ── Pytest ───────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]

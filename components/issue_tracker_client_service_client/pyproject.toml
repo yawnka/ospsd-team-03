@@ -3,7 +3,7 @@ name = "issue-tracker-client-service-client"
 version = "0.1.0"
 description = "A client library for accessing Issue Tracker Client Service"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.23.0,<0.29.0",
     "attrs>=22.2.0",

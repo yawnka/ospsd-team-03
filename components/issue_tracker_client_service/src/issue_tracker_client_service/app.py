@@ -1,5 +1,6 @@
 """FastAPI application exposing the issue tracker client over HTTP."""
 
+import logging
 import os
 import secrets
 from collections.abc import AsyncIterator
@@ -10,6 +11,7 @@ from api.board import Board as SharedBoard  # type: ignore[import-untyped]
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
 from api.issue import Status as SharedStatus
+from discord_client_impl.client import DiscordClient
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -46,6 +48,7 @@ from issue_tracker_client_service.schemas import (
     UpdateIssueIn,
 )
 from issue_tracker_client_service.session import get_session, save_session
+from issue_tracker_client_service.telemetry import setup_telemetry
 
 REQUIRED_ENV_VARS = (
     "TRELLO_API_KEY",
@@ -56,6 +59,8 @@ REQUIRED_ENV_VARS = (
 def _register_ai_client() -> None:
     """Ensure AI client implementation is registered."""
     import ai_client_impl  # noqa: F401, PLC0415
+logger = logging.getLogger(__name__)
+
 
 def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
@@ -88,6 +93,7 @@ app = FastAPI(
     description="FastAPI service exposing the issue tracker client implementation.",
     lifespan=lifespan,
 )
+setup_telemetry(app)
 
 _cors_origin = os.environ.get("ALLOWED_ORIGIN")
 # allow_credentials=True is invalid with allow_origins=["*"].
@@ -156,6 +162,31 @@ def get_client(
 
 
 ClientDependency = Annotated[SharedClient, Depends(get_client)]
+
+
+def _get_discord_client() -> DiscordClient | None:
+    """Return a DiscordClient if credentials are configured, else None."""
+    if not os.getenv("DISCORD_BOT_TOKEN") or not os.getenv("DISCORD_GUILD_ID"):
+        return None
+    return DiscordClient()
+
+
+def _notify_discord(issue: IssueOut) -> None:
+    """Send a Discord notification for a newly created issue. Never raises."""
+    channel_id = os.getenv("DISCORD_NOTIFY_CHANNEL_ID")
+    if not channel_id:
+        return
+    discord = _get_discord_client()
+    if discord is None:
+        return
+    try:
+        text = (
+            f'New issue created: "{issue.title}" '
+            f"(board: {issue.board_id}, status: {issue.status})"
+        )
+        discord.send_message(channel_id, text)
+    except Exception:
+        logger.exception("Discord notification failed — issue creation unaffected")
 
 
 @app.get("/")
@@ -449,7 +480,9 @@ def create_issue(
             detail=f"Failed to create issue in board '{board_id}'",
         ) from exc
     else:
-        return _issue_to_out(issue)
+        out = _issue_to_out(issue)
+        _notify_discord(out)
+        return out
 
 
 @app.patch("/issues/{issue_id}")
