@@ -41,8 +41,8 @@ jobs:
             # Use system Python to ensure venv symlinks survive persist_to_workspace
             uv venv --python $(which python3.12)
             source .venv/bin/activate
-            # Install all workspace packages and dev dependency group (PEP 735)
-            uv sync --all-packages --group dev --verbose
+            # Install all workspace packages and dev dependencies using optional extras (PEP 621)
+            uv sync --all-packages --extra dev --verbose
       - run:
           name: "Verify Installation"
           command: |
@@ -114,7 +114,7 @@ jobs:
           name: "Run Static Analysis (mypy)"
           command: |
             source .venv/bin/activate
-            mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
+            mypy -p issue_tracker_client_api -p issue_tracker_client_impl -p issue_tracker_client_service -p issue_tracker_client_adapter --explicit-package-bases
 
   # Job 5: Integration Tests with Real Credentials
   integration_test:
@@ -165,6 +165,32 @@ jobs:
           path: htmlcov
           destination: coverage-report
 
+  # Job 7: Deploy to Render (hw-2 branch only)
+  deploy:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - run:
+          name: "Trigger Render Deploy"
+          command: |
+            curl -s "$RENDER_DEPLOY_HOOK_URL"
+            echo "Deploy triggered on Render"
+      - run:
+          name: "Verify Health Endpoint"
+          command: |
+            echo "Waiting for deploy to complete..."
+            for i in $(seq 1 18); do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_SERVICE_URL/health")
+              if [ "$HTTP_STATUS" -eq 200 ]; then
+                echo "Health check passed (HTTP $HTTP_STATUS)"
+                exit 0
+              fi
+              echo "Attempt $i/18: HTTP $HTTP_STATUS, retrying in 10s..."
+              sleep 10
+            done
+            echo "Health check failed after 3 minutes"
+            exit 1
+
 
 # Orchestrate jobs using workflows
 workflows:
@@ -188,3 +214,11 @@ workflows:
           requires:
             - unit_test
             - integration_test
+      - deploy:
+          requires:
+            - lint
+            - type_check
+            - coverage_report
+          filters:
+            branches:
+              only: hw-2
