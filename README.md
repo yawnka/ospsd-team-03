@@ -122,7 +122,7 @@ ospsd-team-03
 4.  **Create and Sync the Virtual Environment:**
     This command creates a `.venv` folder and installs all packages (including workspace members and development tools) defined in `uv.lock`.
     ```bash
-    uv sync --all-packages --extra dev
+    uv sync --all-packages --group dev
     ```
 
 5.  **Activate the Virtual Environment:**
