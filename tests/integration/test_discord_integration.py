@@ -63,15 +63,21 @@ class _FakeTrackerClient:
 
 
 def test_notify_discord_called_with_correct_issue_on_create() -> None:
-    """When create_issue succeeds, _notify_discord is called with the resulting IssueOut."""
+    """Discord notify is called with the IssueOut on successful create."""
     with (
         patch.dict("os.environ", {**_SERVICE_ENV, **_DISCORD_ENV}),
-        patch.object(app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()),
+        patch.object(
+            app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()
+        ),
         patch.object(app_module, "_notify_discord") as mock_notify,
     ):
         response = client.post(
             "/boards/board-1/issues",
-            json={"title": "Fix login bug", "desc": "Users cannot log in", "status": "to_do"},
+            json={
+                "title": "Fix login bug",
+                "desc": "Users cannot log in",
+                "status": "to_do",
+            },
         )
 
     assert response.status_code == HTTP_OK
@@ -89,11 +95,17 @@ def test_issue_creation_succeeds_when_discord_env_vars_missing() -> None:
 
     with (
         patch.dict("os.environ", env_without_discord, clear=True),
-        patch.object(app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()),
+        patch.object(
+            app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()
+        ),
     ):
         response = client.post(
             "/boards/board-1/issues",
-            json={"title": "Add dark mode", "desc": "Feature request", "status": "to_do"},
+            json={
+                "title": "Add dark mode",
+                "desc": "Feature request",
+                "status": "to_do",
+            },
         )
 
     assert response.status_code == HTTP_OK
@@ -107,12 +119,18 @@ def test_issue_creation_succeeds_when_discord_raises() -> None:
 
     with (
         patch.dict("os.environ", {**_SERVICE_ENV, **_DISCORD_ENV}),
-        patch.object(app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()),
+        patch.object(
+            app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()
+        ),
         patch.object(app_module, "DiscordClient", return_value=mock_discord),
     ):
         response = client.post(
             "/boards/board-1/issues",
-            json={"title": "Improve search", "desc": "Search is slow", "status": "to_do"},
+            json={
+                "title": "Improve search",
+                "desc": "Search is slow",
+                "status": "to_do",
+            },
         )
 
     assert response.status_code == HTTP_OK

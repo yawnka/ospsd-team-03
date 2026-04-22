@@ -11,6 +11,7 @@ from api.board import Board as SharedBoard  # type: ignore[import-untyped]
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
 from api.issue import Status as SharedStatus
+from discord_client_impl.client import DiscordClient
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -28,7 +29,6 @@ from issue_tracker_client_api.client import (
 from issue_tracker_client_api.client import (
     Status as LocalStatus,
 )
-from discord_client_impl.client import DiscordClient
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 from issue_tracker_client_impl.oauth import build_authorization_url
 
@@ -174,11 +174,11 @@ def _notify_discord(issue: IssueOut) -> None:
         return
     try:
         text = (
-            f"New issue created: \"{issue.title}\" "
+            f'New issue created: "{issue.title}" '
             f"(board: {issue.board_id}, status: {issue.status})"
         )
         discord.send_message(channel_id, text)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Discord notification failed — issue creation unaffected")
 
 
