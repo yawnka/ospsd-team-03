@@ -99,8 +99,25 @@ def test_registered_client_exposes_interface_methods(
         assert callable(getattr(client, method))
 
 HTTP_OK = 200
+
+# Required env vars for the FastAPI lifespan startup validator.
+# The ai_client factory also reads OPENAI_API_KEY at registration time.
+_STARTUP_ENV = {
+    "TRELLO_API_KEY": "fake-key",
+    "TRELLO_API_TOKEN": "fake-token",
+    "OPENAI_API_KEY": "fake-openai-key",
+}
+
+
+def _set_startup_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Populate the env vars the service requires before accepting requests."""
+    for name, value in _STARTUP_ENV.items():
+        monkeypatch.setenv(name, value)
+
+
 def test_ai_chat_plain(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify /ai/chat returns a response using the injected AI client."""
+    _set_startup_env(monkeypatch)
 
     class FakeAIClient:
         def send_message(
@@ -125,20 +142,24 @@ def test_ai_chat_plain(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resp.status_code == HTTP_OK
     assert resp.json() == {"reply": "Hello from AI", "actions": []}
 
-def test_ai_chat_tool_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify /ai/chat handles a tool-call response from the AI client."""
+
+def test_ai_chat_non_tool_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify /ai/chat falls back to send_message when no SDK surface is present.
+
+    The registered AI client lacks ``_client``/``_model``, so ``run_ai_chat``
+    must route through ``send_message`` and return the plain text reply with
+    an empty actions list.
+    """
+    _set_startup_env(monkeypatch)
 
     class FakeAIClient:
         def send_message(
             self,
             prompt: str,
             context: dict[str, Any] | None = None,
-        ) -> dict[str, object]:
+        ) -> str:
             _ = prompt, context
-            return {
-                "tool": "get_boards",
-                "args": {},
-            }
+            return "listed 0 boards"
 
     class FakeIssueTracker:
         def get_boards(self) -> list[object]:
@@ -150,13 +171,17 @@ def test_ai_chat_tool_call(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_get_issue_tracker() -> FakeIssueTracker:
         return FakeIssueTracker()
 
-    monkeypatch.setattr("ai_client_api.get_client", fake_get_ai_client)
+    monkeypatch.setattr(
+        "issue_tracker_client_service.ai_router.get_client",
+        fake_get_ai_client,
+    )
     monkeypatch.setattr(
         "issue_tracker_client_service.app.get_client",
         fake_get_issue_tracker,
     )
 
-    client = TestClient(app)
+    with TestClient(app) as client:
+        resp = client.post("/ai/chat", json={"message": "list boards"})
 
-    resp = client.post("/ai/chat", json={"message": "list boards"})
     assert resp.status_code == HTTP_OK
+    assert resp.json() == {"reply": "listed 0 boards", "actions": []}
