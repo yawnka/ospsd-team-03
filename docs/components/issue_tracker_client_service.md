@@ -163,8 +163,42 @@ Run full suite:
 uv run pytest
 ```
 
+## AI Chat Endpoint (HW3 Second Submission)
+
+The service exposes an AI chat endpoint that accepts natural-language requests and executes domain actions via tool calling:
+
+```
+POST /ai/chat
+Content-Type: application/json
+
+{"message": "Create an issue titled 'Fix login bug' on board abc123"}
+```
+
+Response:
+```json
+{
+  "reply": "Created issue 'Fix login bug' on board abc123.",
+  "actions": [{"tool": "create_issue", "detail": "Created: Fix login bug"}]
+}
+```
+
+The endpoint is handled by `ai_router.run_ai_chat()`, which runs a multi-turn OpenAI tool-calling loop. Up to 10 domain tools are available (see [AI Client Implementation](ai_client_impl.md)).
+
+## Discord Notification (HW3 Second Submission)
+
+When an issue is created via `POST /boards/{board_id}/issues`, the service sends a Discord notification if the following environment variables are set:
+
+| Variable | Purpose |
+|----------|---------|
+| `DISCORD_BOT_TOKEN` | Discord bot token |
+| `DISCORD_GUILD_ID` | Discord server ID |
+| `DISCORD_NOTIFY_CHANNEL_ID` | Channel to post notifications |
+
+Discord failures are caught and logged — they never block issue creation.
+
 ## Notes
 
-- `GET /health` is required for service validation
-- Browser URL bar only supports GET — use Swagger or curl for POST
-- Falls back to environment credentials if no session exists
+- `GET /health` is required for Cloud Run startup probes and CI health checks
+- Browser URL bar only supports GET — use Swagger UI (`/docs`) or curl for POST
+- Falls back to environment credentials (`TRELLO_API_KEY` / `TRELLO_API_TOKEN`) if no session exists
+- Telemetry is a no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset (local development)

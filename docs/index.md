@@ -56,19 +56,21 @@ ospsd-team-03
 
 ## Core Components
 
-1.  **`issue_tracker_client_api`**
-Defines the abstract `IssueTrackerClient` base class (ABC). 
-    This package provides:
-    - The provider-agnostic contract
-    - Domain models (`Issue`, `Comment`)
-    - A lightweight DI registry (`register`, `get_client`)
+**HW1 — Library**
 
-2. **`issue_tracker_client_impl`**
-Provides `DefaultIssueTrackerClient`, a concrete implementation backed by the Trello REST API.
-    This package:
-    - Authenticates using Trello API credentials
-    - Implements all abstract operations
-    - Registers itself automatically on import (Dependency Injection)
+1. **`issue_tracker_client_api`** — Provider-agnostic ABC, domain models (`Issue`, `Board`), DI registry
+2. **`issue_tracker_client_impl`** — Trello-backed implementation; auto-registers on import
+
+**HW2 — Service**
+
+3. **`issue_tracker_client_service`** — FastAPI service exposing the tracker over HTTP; Trello OAuth flow; deployed on GCP Cloud Run
+4. **`issue_tracker_client_service_client`** — Auto-generated type-safe Python client (from OpenAPI spec)
+5. **`issue_tracker_client_adapter`** — Implements the ABC by delegating to the generated client (location transparency)
+
+**HW3 — AI & Cross-Vertical**
+
+6. **`ai_client_api`** — Provider-agnostic ABC for AI chat completions with tool calling support
+7. **`ai_client_impl`** — OpenAI (GPT-4o-mini) implementation; wires 10 domain tools to the issue tracker
 
 ## Dependency Injection Flow
 ```python

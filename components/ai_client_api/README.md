@@ -1,4 +1,4 @@
-# AI Client API - DRAFT
+# AI Client API
 
 Shared abstract API for AI client integrations.
 

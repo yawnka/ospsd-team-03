@@ -4,7 +4,9 @@ This document explains how to configure CircleCI for the project.
 
 ## Overview
 
-The CI/CD pipeline includes:
+The pipeline has two workflows:
+
+**`build_and_test`** — runs on every branch:
 
 - **Build**: Environment setup with `uv`
 - **Lint**: Code quality checks with `ruff`
@@ -12,6 +14,14 @@ The CI/CD pipeline includes:
 - **Unit Tests**: Fast tests with 85% coverage requirement
 - **Integration Tests**: DI wiring and client contract verification
 - **Coverage Report**: HTML coverage artifact
+
+**`deploy_to_cloud_run`** — runs on `hw-3` branch only (added HW3 Second Submission):
+
+- All `build_and_test` jobs, then:
+- **Build & Push Image**: Docker image built and pushed to GCP Artifact Registry, tagged with `$CIRCLE_SHA1`
+- **Terraform Plan**: Preview infrastructure changes for the new image tag
+- **Terraform Apply**: Apply changes to Cloud Run
+- **Verify Health**: Poll `GET /health` with retries until HTTP 200
 
 ## Quick Setup
 
