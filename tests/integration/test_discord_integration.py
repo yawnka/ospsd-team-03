@@ -136,3 +136,45 @@ def test_issue_creation_succeeds_when_discord_raises() -> None:
     assert response.status_code == HTTP_OK
     assert response.json()["title"] == "Improve search"
     mock_discord.send_message.assert_called_once()
+
+
+def test_ai_chat_sends_reply_to_discord() -> None:
+    """AI chat endpoint sends the final AI reply to Discord."""
+    discord_mock = MagicMock()
+
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "fake-openai-key",
+                "DISCORD_BOT_TOKEN": "fake-discord-token",
+                "DISCORD_GUILD_ID": "fake-guild",
+                "DISCORD_NOTIFY_CHANNEL_ID": "fake-channel",
+            },
+        ),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=_FakeTrackerClient(),
+        ),
+        patch.object(app_module, "_get_discord_client", return_value=discord_mock),
+        patch.object(
+            app_module,
+            "run_ai_chat",
+            return_value=app_module.AIChatOut(
+                reply="There is one board available.",
+                actions=[],
+            ),
+        ),
+    ):
+        response = client.post(
+            "/ai/chat",
+            json={"message": "list boards"},
+        )
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["reply"] == "There is one board available."
+    discord_mock.send_message.assert_called_once_with(
+        "fake-channel",
+         "AI response:\nThere is one board available.",
+    )

@@ -188,6 +188,28 @@ def _notify_discord(issue: IssueOut) -> None:
     except Exception:
         logger.exception("Discord notification failed — issue creation unaffected")
 
+def _notify_discord_text(text: str) -> None:
+    """Send a plain Discord notification. Never raises."""
+    channel_id = os.getenv("DISCORD_NOTIFY_CHANNEL_ID")
+    if not channel_id:
+        return
+
+    discord = _get_discord_client()
+    if discord is None:
+        return
+
+    try:
+        discord.send_message(channel_id, text)
+    except Exception:
+        logger.exception("Discord notification failed — AI action unaffected")
+
+def _notify_ai_tool_execution(
+    tool_name: str,
+    _result: object,
+    detail: str,
+) -> None:
+    """Notify Discord after the AI executes any issue-tracker tool."""
+    _notify_discord_text(f"AI executed `{tool_name}`:\n{detail}")
 
 @app.get("/")
 def root() -> dict[str, str]:
@@ -538,8 +560,13 @@ def delete_issue(
         return SuccessOut(success=success)
 
 @app.post("/ai/chat")
-def ai_chat(payload: AIChatIn,  client: ClientDependency) -> AIChatOut:
+def ai_chat(payload: AIChatIn, client: ClientDependency) -> AIChatOut:
     """Handle AI chat requests for the issue tracker."""
-    return run_ai_chat(payload=payload, issue_tracker_client=client)
-
+    response = run_ai_chat(
+        payload=payload,
+        issue_tracker_client=client,
+        on_tool_executed=_notify_ai_tool_execution,
+    )
+    _notify_discord_text(f"AI response:\n{response.reply}")
+    return response
 
