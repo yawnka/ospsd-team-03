@@ -344,7 +344,7 @@ def test_full_vertical_stack_http_issue_create_notifies_discord() -> None:
         patch.object(
             app_module, "DefaultIssueTrackerClient", return_value=tracker
         ),
-        patch.object(app_module, "DiscordClient", return_value=discord_mock),
+        patch.object(app_module, "get_chat_client", return_value=discord_mock),
     ):
         client = TestClient(app)
         response = client.post(
@@ -359,9 +359,10 @@ def test_full_vertical_stack_http_issue_create_notifies_discord() -> None:
     assert response.status_code == HTTP_OK
 
     discord_mock.send_message.assert_called_once()
-    channel_id, message_text = discord_mock.send_message.call_args.args
-    assert channel_id == "fake-channel"
-    assert "Ship HW3" in message_text
-    assert "board-1" in message_text
+    kwargs = discord_mock.send_message.call_args.kwargs
+
+    assert kwargs["channel_id"] == "fake-channel"
+    assert "Ship HW3" in kwargs["text"]
+    assert "board-1" in kwargs["text"]
 
     assert [name for name, _ in tracker.calls] == ["create_issue"]
