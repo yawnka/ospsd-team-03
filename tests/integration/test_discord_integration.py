@@ -143,6 +143,7 @@ def test_ai_chat_returns_reply() -> None:
         patch.dict(
             "os.environ",
             {
+                **_SERVICE_ENV,
                 "OPENAI_API_KEY": "fake-openai-key",
                 "DISCORD_BOT_TOKEN": "fake-discord-token",
                 "DISCORD_GUILD_ID": "fake-guild",

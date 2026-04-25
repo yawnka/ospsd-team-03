@@ -32,12 +32,11 @@ from issue_tracker_client_service_client.models import (
     BoardOut,
     CreateBoardIn,
     CreateIssueIn,
-    CreateIssueInStatus,
     IssueOut,
+    Status,
     SuccessOut,
     UpdateBoardIn,
     UpdateIssueIn,
-    UpdateIssueInStatusType0,
 )
 from issue_tracker_client_service_client.types import UNSET, Unset
 
@@ -266,7 +265,7 @@ class ServiceClientAdapter(SharedClient):  # type: ignore[misc]
             desc=desc if desc is not None else UNSET,
             members=members if members is not None else UNSET,
             due_date=due_date if due_date is not None else UNSET,
-            status=CreateIssueInStatus(_status_to_value(status)),
+            status=Status(_status_to_value(status)),
         )
         try:
             response = create_issue_boards_board_id_issues_post.sync(
@@ -312,7 +311,7 @@ class ServiceClientAdapter(SharedClient):  # type: ignore[misc]
             members=members if members is not None else UNSET,
             due_date=due_date if due_date is not None else UNSET,
             status=(
-                UpdateIssueInStatusType0(status_value)
+                Status(status_value)
                 if status_value is not None
                 else UNSET
             ),
