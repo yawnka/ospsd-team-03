@@ -11,7 +11,7 @@ from api.board import Board as SharedBoard  # type: ignore[import-untyped]
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
 from api.issue import Status as SharedStatus
-from discord_client_impl.client import DiscordClient
+from chat_client_api import get_client as get_chat_client
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -61,6 +61,10 @@ def _register_ai_client() -> None:
     import ai_client_impl  # noqa: F401, PLC0415
 logger = logging.getLogger(__name__)
 
+def _register_chat_client() -> None:
+    """Ensure chat client implementation is registered."""
+    import discord_client_impl  # noqa: F401,  PLC0415
+
 
 def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
@@ -84,6 +88,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Validate service configuration before accepting requests."""
     _validate_required_env()
     _register_ai_client()
+    _register_chat_client()
     yield
 
 
@@ -163,31 +168,29 @@ def get_client(
 
 ClientDependency = Annotated[SharedClient, Depends(get_client)]
 
-
-def _get_discord_client() -> DiscordClient | None:
-    """Return a DiscordClient if credentials are configured, else None."""
-    if not os.getenv("DISCORD_BOT_TOKEN") or not os.getenv("DISCORD_GUILD_ID"):
-        return None
-    return DiscordClient()
-
-
-def _notify_discord(issue: IssueOut) -> None:
-    """Send a Discord notification for a newly created issue. Never raises."""
+def _notify_chat_text(text: str) -> None:
+    """Send a raw message via the shared chat vertical."""
     channel_id = os.getenv("DISCORD_NOTIFY_CHANNEL_ID")
     if not channel_id:
         return
-    discord = _get_discord_client()
-    if discord is None:
-        return
-    try:
-        text = (
-            f'New issue created: "{issue.title}" '
-            f"(board: {issue.board_id}, status: {issue.status})"
-        )
-        discord.send_message(channel_id, text)
-    except Exception:
-        logger.exception("Discord notification failed — issue creation unaffected")
 
+    try:
+        get_chat_client().send_message(channel_id=channel_id, text=text)
+    except Exception:
+        logger.exception("Chat notification failed")
+
+def _notify_chat_action(action: str, detail: str) -> None:
+    """Send a formatted issue-tracker action notification via chat."""
+    _notify_chat_text(f"{action}:\n{detail}")
+
+
+def _notify_ai_tool_execution(
+    tool_name: str,
+    _result: object,
+    detail: str,
+) -> None:
+    """Notify chat after the AI executes an issue-tracker tool."""
+    _notify_chat_action(f"AI executed `{tool_name}`", detail)
 
 @app.get("/")
 def root() -> dict[str, str]:
@@ -481,7 +484,9 @@ def create_issue(
         ) from exc
     else:
         out = _issue_to_out(issue)
-        _notify_discord(out)
+        _notify_chat_action("New issue created",
+                     f'"{out.title}" (board: {out.board_id}, status: {out.status})',
+                     )
         return out
 
 
@@ -538,8 +543,13 @@ def delete_issue(
         return SuccessOut(success=success)
 
 @app.post("/ai/chat")
-def ai_chat(payload: AIChatIn,  client: ClientDependency) -> AIChatOut:
+def ai_chat(payload: AIChatIn, client: ClientDependency) -> AIChatOut:
     """Handle AI chat requests for the issue tracker."""
-    return run_ai_chat(payload=payload, issue_tracker_client=client)
-
+    response = run_ai_chat(
+        payload=payload,
+        issue_tracker_client=client,
+        on_tool_executed=_notify_ai_tool_execution,
+    )
+    _notify_chat_text(f"AI response:\n{response.reply}")
+    return response
 

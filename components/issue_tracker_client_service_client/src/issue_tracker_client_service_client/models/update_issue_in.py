@@ -6,7 +6,7 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.update_issue_in_status_type_0 import UpdateIssueInStatusType0
+from ..models.status import Status
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="UpdateIssueIn")
@@ -21,7 +21,7 @@ class UpdateIssueIn:
         desc (None | str | Unset):
         members (list[str] | None | Unset):
         due_date (None | str | Unset):
-        status (None | Unset | UpdateIssueInStatusType0):
+        status (None | Status | Unset):
         board_id (None | str | Unset):
     """
 
@@ -29,7 +29,7 @@ class UpdateIssueIn:
     desc: None | str | Unset = UNSET
     members: list[str] | None | Unset = UNSET
     due_date: None | str | Unset = UNSET
-    status: None | Unset | UpdateIssueInStatusType0 = UNSET
+    status: None | Status | Unset = UNSET
     board_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -64,7 +64,7 @@ class UpdateIssueIn:
         status: None | str | Unset
         if isinstance(self.status, Unset):
             status = UNSET
-        elif isinstance(self.status, UpdateIssueInStatusType0):
+        elif isinstance(self.status, Status):
             status = self.status.value
         else:
             status = self.status
@@ -141,7 +141,7 @@ class UpdateIssueIn:
 
         due_date = _parse_due_date(d.pop("due_date", UNSET))
 
-        def _parse_status(data: object) -> None | Unset | UpdateIssueInStatusType0:
+        def _parse_status(data: object) -> None | Status | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -149,12 +149,12 @@ class UpdateIssueIn:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                status_type_0 = UpdateIssueInStatusType0(data)
+                status_type_0 = Status(data)
 
                 return status_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(None | Unset | UpdateIssueInStatusType0, data)
+            return cast(None | Status | Unset, data)
 
         status = _parse_status(d.pop("status", UNSET))
 

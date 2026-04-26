@@ -7,7 +7,6 @@ import pytest
 from api.issue import Status as SharedStatus  # type: ignore[import-untyped]
 from fastapi.testclient import TestClient
 from issue_tracker_client_service.app import app
-from issue_tracker_client_service.schemas import IssueOut
 
 from issue_tracker_client_service import app as app_module
 
@@ -62,14 +61,14 @@ class _FakeTrackerClient:
         )
 
 
-def test_notify_discord_called_with_correct_issue_on_create() -> None:
-    """Discord notify is called with the IssueOut on successful create."""
+def test_notify_chat_called_with_correct_issue_on_create() -> None:
+    """Chat notify is called on successful issue create."""
     with (
         patch.dict("os.environ", {**_SERVICE_ENV, **_DISCORD_ENV}),
         patch.object(
             app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()
         ),
-        patch.object(app_module, "_notify_discord") as mock_notify,
+        patch.object(app_module, "_notify_chat_action") as mock_notify,
     ):
         response = client.post(
             "/boards/board-1/issues",
@@ -81,13 +80,13 @@ def test_notify_discord_called_with_correct_issue_on_create() -> None:
         )
 
     assert response.status_code == HTTP_OK
-    mock_notify.assert_called_once()
-    notified_issue: IssueOut = mock_notify.call_args.args[0]
-    assert isinstance(notified_issue, IssueOut)
-    assert notified_issue.title == "Fix login bug"
-    assert notified_issue.board_id == "board-1"
-    assert notified_issue.id == "issue-99"
 
+    mock_notify.assert_called_once()
+    action, detail = mock_notify.call_args.args
+
+    assert action == "New issue created"
+    assert "Fix login bug" in detail
+    assert "board-1" in detail
 
 def test_issue_creation_succeeds_when_discord_env_vars_missing() -> None:
     """When Discord env vars are absent, issue creation still returns 200."""
@@ -122,7 +121,7 @@ def test_issue_creation_succeeds_when_discord_raises() -> None:
         patch.object(
             app_module, "DefaultIssueTrackerClient", return_value=_FakeTrackerClient()
         ),
-        patch.object(app_module, "DiscordClient", return_value=mock_discord),
+        patch.object(app_module, "get_chat_client", return_value=mock_discord),
     ):
         response = client.post(
             "/boards/board-1/issues",
@@ -136,3 +135,39 @@ def test_issue_creation_succeeds_when_discord_raises() -> None:
     assert response.status_code == HTTP_OK
     assert response.json()["title"] == "Improve search"
     mock_discord.send_message.assert_called_once()
+
+
+def test_ai_chat_returns_reply() -> None:
+    """AI chat endpoint returns the final AI reply."""
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                **_SERVICE_ENV,
+                "OPENAI_API_KEY": "fake-openai-key",
+                "DISCORD_BOT_TOKEN": "fake-discord-token",
+                "DISCORD_GUILD_ID": "fake-guild",
+                "DISCORD_NOTIFY_CHANNEL_ID": "fake-channel",
+            },
+        ),
+        patch.object(
+            app_module,
+            "DefaultIssueTrackerClient",
+            return_value=_FakeTrackerClient(),
+        ),
+        patch.object(
+            app_module,
+            "run_ai_chat",
+            return_value=app_module.AIChatOut(
+                reply="There is one board available.",
+                actions=[],
+            ),
+        ),
+    ):
+        response = client.post(
+            "/ai/chat",
+            json={"message": "list boards"},
+        )
+
+    assert response.status_code == HTTP_OK
+    assert response.json()["reply"] == "There is one board available."

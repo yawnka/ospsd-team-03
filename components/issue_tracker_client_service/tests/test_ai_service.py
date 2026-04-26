@@ -504,3 +504,51 @@ def test_ai_chat_can_delete_issue() -> None:
     assert len(result.actions) == 1
     assert result.actions[0].tool == "delete_issue"
     assert result.actions[0].detail == "Deleted issue issue-123."
+
+
+def test_ai_chat_calls_on_tool_executed_for_create_issue() -> None:
+    """AI tool execution invokes the notification callback."""
+    fake_issue_tracker_client = FakeIssueTrackerClient()
+    fake_ai_client = FakeAIClient(
+        [
+            FakeResponse(
+                FakeMessage(
+                    content=None,
+                    tool_calls=[
+                        FakeToolCall(
+                            tool_id="tool-1",
+                            name="create_issue",
+                            arguments=(
+                                '{"title":"Discord callback test",'
+                                '"board_id":"board-1",'
+                                '"desc":"Created by AI",'
+                                '"status":"to_do"}'
+                            ),
+                        )
+                    ],
+                )
+            ),
+            FakeResponse(
+                FakeMessage(
+                    content="Created Discord callback test.",
+                    tool_calls=[],
+                )
+            ),
+        ]
+    )
+
+    calls: list[tuple[str, object, str]] = []
+
+    result = run_ai_chat(
+        payload=AIChatIn(message="Create an issue called Discord callback test"),
+        issue_tracker_client=fake_issue_tracker_client,
+        ai_client=fake_ai_client,
+        on_tool_executed=lambda tool_name, tool_result, detail: calls.append(
+            (tool_name, tool_result, detail)
+        ),
+    )
+
+    assert result.reply == "Created Discord callback test."
+    assert len(calls) == 1
+    assert calls[0][0] == "create_issue"
+    assert calls[0][2] == "Created issue 'Discord callback test' on board board-1."
