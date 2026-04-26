@@ -83,7 +83,7 @@ variable "discord_notify_channel_id" {
 variable "enable_discord_bot" {
   description = "Deploy Discord bot GCE instance. Requires bot image in Artifact Registry."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "bot_image_tag" {

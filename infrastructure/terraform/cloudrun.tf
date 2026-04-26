@@ -338,6 +338,9 @@ resource "google_compute_instance" "discord_bot" {
     IMAGE="$${REGION}-docker.pkg.dev/$${PROJECT}/${google_artifact_registry_repository.docker.repository_id}/discord-bot:${var.bot_image_tag}"
 
     # --- Authenticate Docker to Artifact Registry via metadata server ---
+    # COS root filesystem is read-only; redirect Docker config to /tmp
+    export HOME=/tmp
+
     ACCESS_TOKEN=$(curl -sf -H "Metadata-Flavor: Google" \
       "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
       | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')

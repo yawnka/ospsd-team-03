@@ -1,0 +1,37 @@
+# Stage 1: Build — install dependencies with uv
+FROM python:3.13-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# git is required to install git-sourced uv dependencies (e.g. ospd-issue-tracker-api)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace root config and lockfile first (better layer caching)
+COPY pyproject.toml uv.lock ./
+
+# Copy all workspace members (uv needs full workspace context to resolve)
+COPY components/ components/
+
+# Install production dependencies only
+RUN uv sync --all-packages --no-dev --frozen
+
+# Stage 2: Runtime — slim image without build tools
+FROM python:3.13-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+RUN groupadd --system app && useradd --system --gid app --create-home app
+
+WORKDIR /app
+
+COPY --from=builder /app /app
+
+RUN chown -R app:app /app
+
+USER app
+
+ENV UV_CACHE_DIR=/home/app/.cache/uv
+
+CMD ["uv", "run", "--no-sync", "python", "-m", "issue_tracker_client_service.discord_bot"]

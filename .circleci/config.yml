@@ -197,6 +197,38 @@ jobs:
             docker push "${IMAGE}:${CIRCLE_SHA1}"
             docker push "${IMAGE}:latest"
 
+  # Job 7b: Build Discord bot Docker image and push to Artifact Registry
+  build_and_push_bot_image:
+    docker:
+      - image: google/cloud-sdk:slim
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: "Install Docker CLI"
+          command: |
+            apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+      - run:
+          name: "Authenticate to GCP"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+            gcloud config set project "$GCP_PROJECT_ID"
+      - run:
+          name: "Configure Docker for Artifact Registry"
+          command: |
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      - run:
+          name: "Build and Push Bot Image"
+          command: |
+            REGION="$(echo "${GCP_REGION}" | tr -d '[:space:]')"
+            PROJECT="$(echo "${GCP_PROJECT_ID}" | tr -d '[:space:]')"
+            IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/issue-tracker/discord-bot"
+            docker build -f Dockerfile.bot -t "${IMAGE}:${CIRCLE_SHA1}" -t "${IMAGE}:latest" .
+            docker push "${IMAGE}:${CIRCLE_SHA1}"
+            docker push "${IMAGE}:latest"
+
   # Job 8: Terraform Plan — preview infrastructure changes
   terraform_plan:
     docker:
@@ -307,6 +339,7 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
       - lint:
           requires:
             - build
@@ -316,6 +349,7 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
       - type_check:
           requires:
             - build
@@ -325,6 +359,7 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
       - unit_test:
           requires:
             - build
@@ -334,6 +369,7 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
       - build_and_push_image:
           requires:
             - lint
@@ -345,15 +381,30 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
-      - terraform_plan:
+                - discord-bot-phase-c
+      - build_and_push_bot_image:
           requires:
-            - build_and_push_image
+            - lint
+            - type_check
+            - unit_test
           filters:
             branches:
               only:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
+      - terraform_plan:
+          requires:
+            - build_and_push_image
+            - build_and_push_bot_image
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+                - feat/iac-terraform
+                - discord-bot-phase-c
       - terraform_apply:
           requires:
             - terraform_plan
@@ -363,6 +414,7 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
       - verify_health:
           requires:
             - terraform_apply
@@ -372,3 +424,4 @@ workflows:
                 - main
                 - hw-3
                 - feat/iac-terraform
+                - discord-bot-phase-c
