@@ -352,7 +352,7 @@ resource "google_compute_instance" "discord_bot" {
       curl -sf \
         -H "Authorization: Bearer $${ACCESS_TOKEN}" \
         "https://secretmanager.googleapis.com/v1/projects/$${PROJECT}/secrets/$1/versions/latest:access" \
-        | sed -n 's/.*"data":"\([^"]*\)".*/\1/p' \
+        | sed -n 's/.*"data": *"\([^"]*\)".*/\1/p' \
         | base64 -d
     }
 
