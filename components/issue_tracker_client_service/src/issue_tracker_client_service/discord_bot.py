@@ -4,6 +4,7 @@ import logging
 import os
 
 import discord
+import discord_client_impl  # noqa: F401 — register chat-client DI before get_client()
 from chat_client_api import get_client as get_chat_client
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
