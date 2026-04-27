@@ -2,16 +2,20 @@
 A client library for accessing Issue Tracker Client Service
 
 ## Usage
-The generated client provides a type-safe interface for calling the service.
-
-In this project, authentication is handled via a session cookie (`session_id`), not via bearer tokens or `Authorization` headers.
-
-The adapter layer is responsible for configuring the client so authenticated requests include this cookie. Consumers of the client should not manually manage authentication.
+First, create a client:
 
 ```python
 from issue_tracker_client_service_client import Client
 
 client = Client(base_url="https://api.example.com")
+```
+
+If the endpoints you're going to hit require authentication, use `AuthenticatedClient` instead:
+
+```python
+from issue_tracker_client_service_client import AuthenticatedClient
+
+client = AuthenticatedClient(base_url="https://api.example.com", token="SuperSecretToken")
 ```
 
 Now call your endpoint and use your models:
@@ -42,8 +46,9 @@ async with client as client:
 By default, when you're calling an HTTPS API it will attempt to verify that SSL is working correctly. Using certificate verification is highly recommended most of the time, but sometimes you may need to authenticate to a server (especially an internal server) using a custom certificate bundle.
 
 ```python
-client = Client(
-    base_url="https://internal_api.example.com",
+client = AuthenticatedClient(
+    base_url="https://internal_api.example.com", 
+    token="SuperSecretToken",
     verify_ssl="/path/to/certificate_bundle.pem",
 )
 ```
@@ -51,8 +56,9 @@ client = Client(
 You can also disable certificate validation altogether, but beware that **this is a security risk**.
 
 ```python
-client = Client(
-    base_url="https://internal_api.example.com",
+client = AuthenticatedClient(
+    base_url="https://internal_api.example.com", 
+    token="SuperSecretToken", 
     verify_ssl=False
 )
 ```
@@ -104,11 +110,15 @@ client.set_httpx_client(httpx.Client(base_url="https://api.example.com", proxies
 ```
 
 ## Building / publishing this package
-This project uses [uv](https://docs.astral.sh/uv/) to manage dependencies and packaging. Here are the basics:
-1. Update the metadata in `pyproject.toml` (e.g. version)
-1. Build a wheel: `uv build`
-1. Publish to PyPI: `uv publish`
+This project uses [Poetry](https://python-poetry.org/) to manage dependencies  and packaging.  Here are the basics:
+1. Update the metadata in pyproject.toml (e.g. authors, version)
+1. If you're using a private repository, configure it with Poetry
+    1. `poetry config repositories.<your-repository-name> <url-to-your-repository>`
+    1. `poetry config http-basic.<your-repository-name> <username> <password>`
+1. Publish the client with `poetry publish --build -r <your-repository-name>` or, if for public PyPI, just `poetry publish --build`
 
 If you want to install this client into another project without publishing it (e.g. for development) then:
-1. If that project **is using uv workspaces**, add it as a workspace dependency in the root `pyproject.toml` under `[tool.uv.sources]`
-1. Otherwise, install directly: `uv add <path-to-this-client>`
+1. If that project **is using Poetry**, you can simply do `poetry add <path-to-this-client>` from that project
+1. If that project is not using Poetry:
+    1. Build a wheel with `poetry build -f wheel`
+    1. Install that wheel from the other project `pip install <path-to-wheel>`

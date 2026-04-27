@@ -1,64 +1,49 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
-T = TypeVar("T", bound="AddCommentIn")
-
+T = TypeVar("T", bound="CreateBoardIn")
 
 
 @_attrs_define
-class AddCommentIn:
-    """ Represent a request to add a comment.
+class CreateBoardIn:
+    """Represent a request to create a board.
 
-        Attributes:
-            body (str):
-     """
+    Attributes:
+        name (str):
+    """
 
-    body: str
+    name: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        body = self.body
-
+        name = self.name
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "body": body,
-        })
+        field_dict.update(
+            {
+                "name": name,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        body = d.pop("body")
+        name = d.pop("name")
 
-        add_comment_in = cls(
-            body=body,
+        create_board_in = cls(
+            name=name,
         )
 
-
-        add_comment_in.additional_properties = d
-        return add_comment_in
+        create_board_in.additional_properties = d
+        return create_board_in
 
     @property
     def additional_keys(self) -> list[str]:

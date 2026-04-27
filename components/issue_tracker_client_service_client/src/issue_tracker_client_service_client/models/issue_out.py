@@ -1,66 +1,75 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
+from ..models.status import Status
 
 T = TypeVar("T", bound="IssueOut")
 
 
-
 @_attrs_define
 class IssueOut:
-    """ Represent a serialized issue.
+    """Represent a serialized issue in the shared API shape.
 
-        Attributes:
-            id (int):
-            title (str):
-            body (str):
-            state (str):
-     """
+    Attributes:
+        id (str):
+        title (str):
+        desc (str):
+        members (list[str] | None):
+        due_date (None | str):
+        status (Status): Status values for an issue.
+        board_id (str):
+    """
 
-    id: int
+    id: str
     title: str
-    body: str
-    state: str
+    desc: str
+    members: list[str] | None
+    due_date: None | str
+    status: Status
+    board_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
 
         title = self.title
 
-        body = self.body
+        desc = self.desc
 
-        state = self.state
+        members: list[str] | None
+        if isinstance(self.members, list):
+            members = self.members
 
+        else:
+            members = self.members
+
+        due_date: None | str
+        due_date = self.due_date
+
+        status = self.status.value
+
+        board_id = self.board_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "id": id,
-            "title": title,
-            "body": body,
-            "state": state,
-        })
+        field_dict.update(
+            {
+                "id": id,
+                "title": title,
+                "desc": desc,
+                "members": members,
+                "due_date": due_date,
+                "status": status,
+                "board_id": board_id,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -69,17 +78,43 @@ class IssueOut:
 
         title = d.pop("title")
 
-        body = d.pop("body")
+        desc = d.pop("desc")
 
-        state = d.pop("state")
+        def _parse_members(data: object) -> list[str] | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, list):
+                    raise TypeError()
+                members_type_0 = cast(list[str], data)
+
+                return members_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(list[str] | None, data)
+
+        members = _parse_members(d.pop("members"))
+
+        def _parse_due_date(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        due_date = _parse_due_date(d.pop("due_date"))
+
+        status = Status(d.pop("status"))
+
+        board_id = d.pop("board_id")
 
         issue_out = cls(
             id=id,
             title=title,
-            body=body,
-            state=state,
+            desc=desc,
+            members=members,
+            due_date=due_date,
+            status=status,
+            board_id=board_id,
         )
-
 
         issue_out.additional_properties = d
         return issue_out

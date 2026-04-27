@@ -1,39 +1,21 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
-from ...models.auth_status_out import AuthStatusOut
+from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    code: None | str | Unset = UNSET,
     state: None | str | Unset = UNSET,
     error: None | str | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
-
-    json_code: None | str | Unset
-    if isinstance(code, Unset):
-        json_code = UNSET
-    else:
-        json_code = code
-    params["code"] = json_code
 
     json_state: None | str | Unset
     if isinstance(state, Unset):
@@ -49,9 +31,7 @@ def _get_kwargs(
         json_error = error
     params["error"] = json_error
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -59,23 +39,18 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> AuthStatusOut | HTTPValidationError | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | HTTPValidationError | None:
     if response.status_code == 200:
-        response_200 = AuthStatusOut.from_dict(response.json())
-
-
-
+        response_200 = response.json()
         return response_200
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
-
-
 
         return response_422
 
@@ -85,7 +60,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[AuthStatusOut | HTTPValidationError]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | HTTPValidationError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -97,17 +74,19 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    code: None | str | Unset = UNSET,
     state: None | str | Unset = UNSET,
     error: None | str | Unset = UNSET,
+) -> Response[Any | HTTPValidationError]:
+    """Auth Callback
 
-) -> Response[AuthStatusOut | HTTPValidationError]:
-    """ Auth Callback
+     Serve an HTML page that extracts the Trello token from the URL fragment.
 
-     Handle the OAuth callback.
+    Trello redirects to ``return_url#token=<value>``. Since the fragment is
+    not sent to the server, this endpoint returns a small HTML/JS page that
+    reads ``window.location.hash``, extracts the token, and POSTs it to
+    ``/auth/token``.
 
     Args:
-        code (None | str | Unset):
         state (None | str | Unset):
         error (None | str | Unset):
 
@@ -116,15 +95,12 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[AuthStatusOut | HTTPValidationError]
-     """
-
+        Response[Any | HTTPValidationError]
+    """
 
     kwargs = _get_kwargs(
-        code=code,
-state=state,
-error=error,
-
+        state=state,
+        error=error,
     )
 
     response = client.get_httpx_client().request(
@@ -133,20 +109,23 @@ error=error,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    code: None | str | Unset = UNSET,
     state: None | str | Unset = UNSET,
     error: None | str | Unset = UNSET,
+) -> Any | HTTPValidationError | None:
+    """Auth Callback
 
-) -> AuthStatusOut | HTTPValidationError | None:
-    """ Auth Callback
+     Serve an HTML page that extracts the Trello token from the URL fragment.
 
-     Handle the OAuth callback.
+    Trello redirects to ``return_url#token=<value>``. Since the fragment is
+    not sent to the server, this endpoint returns a small HTML/JS page that
+    reads ``window.location.hash``, extracts the token, and POSTs it to
+    ``/auth/token``.
 
     Args:
-        code (None | str | Unset):
         state (None | str | Unset):
         error (None | str | Unset):
 
@@ -155,32 +134,32 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        AuthStatusOut | HTTPValidationError
-     """
-
+        Any | HTTPValidationError
+    """
 
     return sync_detailed(
         client=client,
-code=code,
-state=state,
-error=error,
-
+        state=state,
+        error=error,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    code: None | str | Unset = UNSET,
     state: None | str | Unset = UNSET,
     error: None | str | Unset = UNSET,
+) -> Response[Any | HTTPValidationError]:
+    """Auth Callback
 
-) -> Response[AuthStatusOut | HTTPValidationError]:
-    """ Auth Callback
+     Serve an HTML page that extracts the Trello token from the URL fragment.
 
-     Handle the OAuth callback.
+    Trello redirects to ``return_url#token=<value>``. Since the fragment is
+    not sent to the server, this endpoint returns a small HTML/JS page that
+    reads ``window.location.hash``, extracts the token, and POSTs it to
+    ``/auth/token``.
 
     Args:
-        code (None | str | Unset):
         state (None | str | Unset):
         error (None | str | Unset):
 
@@ -189,37 +168,35 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[AuthStatusOut | HTTPValidationError]
-     """
-
+        Response[Any | HTTPValidationError]
+    """
 
     kwargs = _get_kwargs(
-        code=code,
-state=state,
-error=error,
-
+        state=state,
+        error=error,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    code: None | str | Unset = UNSET,
     state: None | str | Unset = UNSET,
     error: None | str | Unset = UNSET,
+) -> Any | HTTPValidationError | None:
+    """Auth Callback
 
-) -> AuthStatusOut | HTTPValidationError | None:
-    """ Auth Callback
+     Serve an HTML page that extracts the Trello token from the URL fragment.
 
-     Handle the OAuth callback.
+    Trello redirects to ``return_url#token=<value>``. Since the fragment is
+    not sent to the server, this endpoint returns a small HTML/JS page that
+    reads ``window.location.hash``, extracts the token, and POSTs it to
+    ``/auth/token``.
 
     Args:
-        code (None | str | Unset):
         state (None | str | Unset):
         error (None | str | Unset):
 
@@ -228,14 +205,13 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        AuthStatusOut | HTTPValidationError
-     """
+        Any | HTTPValidationError
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-code=code,
-state=state,
-error=error,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            state=state,
+            error=error,
+        )
+    ).parsed
