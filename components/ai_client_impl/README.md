@@ -1,17 +1,19 @@
-# AI Client Implementation - DRAFT
+# AI Client Implementation (OpenAI)
 
 OpenAI-backed implementation of the shared `ai_client_api`.
 
-This package registers an `AIClient` implementation that uses the OpenAI API.
+This package registers an `AIClient` implementation that uses the OpenAI API (GPT-4o-mini by default).
 
 ## Required environment variable
 
-- `OPENAI_API_KEY`
+| Variable | Description |
+|----------|-------------|
+| `OPENAI_API_KEY` | OpenAI API key |
 
 ## Example
 
 ```python
-import openai_ai_client_impl  # noqa: F401
+import ai_client_impl  # triggers DI registration
 from ai_client_api import get_client
 
 client = get_client()

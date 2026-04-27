@@ -19,7 +19,7 @@ dev = [
 [tool.ruff]
 src = ["components"]
 exclude = [
-    "components/issue_tracker_client_service_client/issue_tracker_client_service_client",
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client",
 ]
 
 [tool.ruff.lint]
@@ -88,14 +88,14 @@ markers = [
 source = ["components"]
 branch = true
 omit = [
-    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client/*",
 ]
 
 [tool.coverage.report]
 show_missing = true
 fail_under = 85 # Justification: A high threshold ensures most code is tested.
 omit = [
-    "components/issue_tracker_client_service_client/issue_tracker_client_service_client/*",
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client/*",
 ]
 exclude_lines = [
     "pragma: no cover",

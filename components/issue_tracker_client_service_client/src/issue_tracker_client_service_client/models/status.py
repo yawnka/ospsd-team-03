@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class CreateIssueInStatus(str, Enum):
+class Status(str, Enum):
     COMPLETED = "completed"
     IN_PROGRESS = "in_progress"
     TO_DO = "to_do"

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from ai_client_api import get_client
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ai_client_api.client import AIClient
     from api.client import Client
 
@@ -36,6 +38,7 @@ def run_ai_chat(
     payload: AIChatIn,
     issue_tracker_client: Client,
     ai_client: AIClient | None = None,
+    on_tool_executed: Callable[[str, object, str], None] | None = None,
     ) -> AIChatOut:
     """Run the AI workflow for a chat request."""
     ai_client =ai_client or get_client()
@@ -95,6 +98,8 @@ def run_ai_chat(
         )
 
         actions.append(AIActionOut(tool=tool_name, detail=detail))
+        if on_tool_executed is not None:
+            on_tool_executed(tool_name, raw_result, detail)
 
         messages.append(
             {

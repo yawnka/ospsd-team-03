@@ -61,3 +61,33 @@ variable "otel_service_name" {
   type        = string
   default     = "issue-tracker-service"
 }
+
+# ---------- Discord notification ----------
+# discord-bot-token is managed in Secret Manager (secret ID: discord-bot-token).
+# Populate via: echo -n "$TOKEN" | gcloud secrets versions add discord-bot-token --data-file=-
+
+variable "discord_guild_id" {
+  description = "Discord server (guild) ID. Empty = Discord features disabled."
+  type        = string
+  default     = ""
+}
+
+variable "discord_notify_channel_id" {
+  description = "Discord channel ID for issue-creation notifications."
+  type        = string
+  default     = ""
+}
+
+# ---------- Discord bot (GCE) ----------
+
+variable "enable_discord_bot" {
+  description = "Deploy Discord bot GCE instance. Requires bot image in Artifact Registry."
+  type        = bool
+  default     = true
+}
+
+variable "bot_image_tag" {
+  description = "Docker image tag for the Discord bot container."
+  type        = string
+  default     = "latest"
+}

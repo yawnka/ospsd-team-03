@@ -6,6 +6,8 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.status import Status
+
 T = TypeVar("T", bound="IssueOut")
 
 
@@ -19,7 +21,7 @@ class IssueOut:
         desc (str):
         members (list[str] | None):
         due_date (None | str):
-        status (str):
+        status (Status): Status values for an issue.
         board_id (str):
     """
 
@@ -28,7 +30,7 @@ class IssueOut:
     desc: str
     members: list[str] | None
     due_date: None | str
-    status: str
+    status: Status
     board_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -49,7 +51,7 @@ class IssueOut:
         due_date: None | str
         due_date = self.due_date
 
-        status = self.status
+        status = self.status.value
 
         board_id = self.board_id
 
@@ -100,7 +102,7 @@ class IssueOut:
 
         due_date = _parse_due_date(d.pop("due_date"))
 
-        status = d.pop("status")
+        status = Status(d.pop("status"))
 
         board_id = d.pop("board_id")
 

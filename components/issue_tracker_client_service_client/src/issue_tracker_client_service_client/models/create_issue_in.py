@@ -6,7 +6,7 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.create_issue_in_status import CreateIssueInStatus
+from ..models.status import Status
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="CreateIssueIn")
@@ -21,14 +21,14 @@ class CreateIssueIn:
         desc (None | str | Unset):
         members (list[str] | None | Unset):
         due_date (None | str | Unset):
-        status (CreateIssueInStatus | Unset):  Default: CreateIssueInStatus.TO_DO.
+        status (Status | Unset): Status values for an issue.
     """
 
     title: str
     desc: None | str | Unset = UNSET
     members: list[str] | None | Unset = UNSET
     due_date: None | str | Unset = UNSET
-    status: CreateIssueInStatus | Unset = CreateIssueInStatus.TO_DO
+    status: Status | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -118,11 +118,11 @@ class CreateIssueIn:
         due_date = _parse_due_date(d.pop("due_date", UNSET))
 
         _status = d.pop("status", UNSET)
-        status: CreateIssueInStatus | Unset
+        status: Status | Unset
         if isinstance(_status, Unset):
             status = UNSET
         else:
-            status = CreateIssueInStatus(_status)
+            status = Status(_status)
 
         create_issue_in = cls(
             title=title,
