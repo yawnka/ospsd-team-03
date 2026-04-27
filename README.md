@@ -240,13 +240,14 @@ Terraform state is stored in a GCS bucket (`ospsd-team-03-tfstate`).
 
 ### Observability
 
-The service emits telemetry data via OpenTelemetry to Grafana Cloud:
+Both the Cloud Run service and Discord bot emit telemetry via OpenTelemetry to Grafana Cloud. The Grafana dashboard (`infrastructure/grafana/dashboard.json`) has seven panels across two sections:
 
-- **Request Latency** — p50, p95, p99 percentiles
-- **Success Rate** — percentage of 2xx responses
-- **Failure Rate** — percentage of 4xx/5xx responses
+- **Cloud Run** — Request Latency (p50/p95/p99), Success Rate (2xx), Client Error Rate (4xx), Server Error Rate (5xx)
+- **Discord Bot** — Command Latency (p50/p95/p99), Success Rate, Failure Rate
 
-Telemetry is opt-in: when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, the service runs without any observability overhead. The Grafana dashboard definition is committed at `infrastructure/grafana/dashboard.json`.
+Telemetry is opt-in: when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, both services run without any observability overhead.
+
+**Public dashboard**: <https://ospsd.grafana.net/public-dashboards/dc991557efdc4c608809a28ca4430b8c>
 
 ## Continuous Integration
 
