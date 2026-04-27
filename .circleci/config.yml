@@ -338,8 +338,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - lint:
           requires:
             - build
@@ -348,8 +346,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - type_check:
           requires:
             - build
@@ -358,8 +354,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - unit_test:
           requires:
             - build
@@ -368,8 +362,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - build_and_push_image:
           requires:
             - lint
@@ -380,8 +372,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - build_and_push_bot_image:
           requires:
             - lint
@@ -392,8 +382,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - terraform_plan:
           requires:
             - build_and_push_image
@@ -403,8 +391,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - terraform_apply:
           requires:
             - terraform_plan
@@ -413,8 +399,6 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
       - verify_health:
           requires:
             - terraform_apply
@@ -423,5 +407,3 @@ workflows:
               only:
                 - main
                 - hw-3
-                - feat/iac-terraform
-                - discord-bot-phase-c
