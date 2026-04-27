@@ -8,6 +8,7 @@ import discord_client_impl  # noqa: F401 — register chat-client DI before get_
 from chat_client_api import get_client as get_chat_client
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
+import ai_client_impl  # noqa: F401 — register AI-client DI before get_client()
 from issue_tracker_client_service.ai_router import run_ai_chat
 from issue_tracker_client_service.ai_schemas import AIChatIn
 
