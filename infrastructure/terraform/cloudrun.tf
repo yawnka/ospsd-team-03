@@ -161,6 +161,14 @@ resource "google_cloud_run_v2_service" "app" {
           value = env.value
         }
       }
+      # Use NEW semantic conventions (http.server.request.duration / http.response.status_code)
+      dynamic "env" {
+        for_each = var.otel_exporter_otlp_endpoint != "" ? ["http"] : []
+        content {
+          name  = "OTEL_SEMCONV_STABILITY_OPT_IN"
+          value = env.value
+        }
+      }
       # OTEL_EXPORTER_OTLP_HEADERS injected from Secret Manager when endpoint is set
       dynamic "env" {
         for_each = var.otel_exporter_otlp_endpoint != "" ? [google_secret_manager_secret.otel_otlp_headers.secret_id] : []
