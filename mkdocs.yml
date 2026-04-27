@@ -21,13 +21,9 @@ theme:
 
 nav:
   - 'Overview': 'index.md'
-  - 'Design': 'design.md'
   - Components:
       - Issue Tracker Client API: components/issue_tracker_client_api.md
       - Issue Tracker Client Implementation: components/issue_tracker_client_impl.md
-      - Issue Tracker Client Service: components/issue_tracker_client_service.md
-      - Issue Tracker Service Client: components/issue_tracker_client_service_client.md
-      - Issue Tracker Client Adapter: components/issue_tracker_client_adapter.md
   - CircleCI Setup: circleci-setup.md
   - Component: component.md
   - Testing: testing.md
@@ -44,8 +40,6 @@ plugins:
           paths:
             - components/issue_tracker_client_api/src
             - components/issue_tracker_client_impl/src
-            - components/issue_tracker_client_service/src
-            - components/issue_tracker_client_adapter/src
           options:
             show_source: false
             docstring_section_style: spacy

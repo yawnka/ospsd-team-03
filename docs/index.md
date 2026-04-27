@@ -1,16 +1,13 @@
 # Issue Tracker Client - Trello
 
-This repo provides a small, testable Python workspace for interacting with an issue tracker using a clean abstraction (`issue_tracker_client_api`) and a default implementation (`issue_tracker_client_impl`) backed by **Trello**, exposed as a deployable **FastAPI service** with a remote-access **adapter**.
+This repo provides a small, testable Python workspace for interacting with an issue tracker using a clean abstraction (`issue_tracker_client_api`) and a default implementation (`issue_tracker_client_impl`) backed by **Trello**.
 
 Conceptually, Trello **cards** are treated as **issues**.
 
 ## Overview
 This project implements a provider-agnostic issue tracker system using:
 - A clean **abstract API package**
-- A concrete **Trello implementation** with Trello's redirect-based token authorization
-- A **FastAPI service** exposing the implementation over HTTP
-- An **auto-generated client** for type-safe HTTP calls
-- A **service client adapter** achieving location transparency
+- A concrete **Trello implementation**
 - **Dependency Injection (DI)** using auto-registration at import time
 - Strict typing, linting, CI, and documentation
 
@@ -20,89 +17,58 @@ The system separates abstraction from implementation to allow providers to plug 
 
 ```text
 ospsd-team-03
-├── .circleci
-│    └── config.yml
-│
+├── .circleci           
+│    └── config.yml 
+│  
 ├── .github
-│   ├── ISSUE_TEMPLATE/
-│   ├── PULL_REQUEST.md
+│   ├── ISSUE_TEMPLATE/                   
+│   ├── PULL_REQUEST.md                
 │
 ├── components
-│   ├── issue_tracker_client_api/          # Abstract interface (ABC + DI)
+│   ├── issue_tracker_client_api/          
 │   │   ├── src/
-│   │   ├── README.md
-│   │   └── tests/
+│   │   ├── README.md                   
+│   │   └── tests/                         
 │   │
-│   ├── issue_tracker_client_impl/         # Trello implementation
-│   │   ├── src/
-│   │   ├── README.md
-│   │   └── tests/
-│   │
-│   ├── issue_tracker_client_service/      # FastAPI service
-│   │   ├── src/
-│   │   ├── README.md
-│   │   └── tests/
-│   │
-│   ├── issue_tracker_client_service_client/  # Auto-generated HTTP client
-│   │   └── ...
-│   │
-│   └── issue_tracker_client_adapter/      # Service client adapter
+│   └── issue_tracker_client_impl/     
 │       ├── src/
-│       ├── README.md
-│       └── tests/
+│       ├── README.md                    
+│       └── tests/                       
 │
 ├── tests/
-│   ├── integration/
-│   └── e2e/
+│   ├── integration/                     
+│   └── e2e/                             
 │
-├── docs/
-│   ├── components/
+├── docs/                                   
+│   ├── components     
 │   │   ├── issue_tracker_client_api.md
-│   │   ├── issue_tracker_client_impl.md
-│   │   ├── issue_tracker_client_service.md
-│   │   ├── issue_tracker_client_service_client.md
-│   │   └── issue_tracker_client_adapter.md
+│   │   └── issue_tracker_client_impl.md 
 │   ├── circleci-setup.md
 │   ├── component.md
 │   ├── testing.md
-│   └── index.md
-├── Dockerfile
-├── render.yaml
-├── mkdocs.yml
-├── pyproject.toml
-├── README.md
-├── uv.lock
+│   └── index.md                        
+├── mkdocs.yml                           
+├── pyproject.toml                       
+├── README.md                          
+├── uv.lock                               
 └── LICENSE
 ```
 
 ## Core Components
 
 1.  **`issue_tracker_client_api`**
-    Defines the abstract `IssueTrackerClient` base class (ABC).
+Defines the abstract `IssueTrackerClient` base class (ABC). 
     This package provides:
     - The provider-agnostic contract
     - Domain models (`Issue`, `Comment`)
     - A lightweight DI registry (`register`, `get_client`)
 
 2. **`issue_tracker_client_impl`**
-    Provides `DefaultIssueTrackerClient`, a concrete implementation backed by the Trello REST API.
+Provides `DefaultIssueTrackerClient`, a concrete implementation backed by the Trello REST API.
     This package:
     - Authenticates using Trello API credentials
     - Implements all abstract operations
     - Registers itself automatically on import (Dependency Injection)
-
-3. **`issue_tracker_client_service`**
-    FastAPI service exposing the implementation over HTTP endpoints.
-    This package:
-    - Provides REST endpoints for all issue operations
-    - Handles Trello authorization login/callback flow
-    - Supports session-based multi-user authentication
-
-4. **`issue_tracker_client_service_client`**
-    Auto-generated type-safe HTTP client created from the service's OpenAPI spec using `openapi-python-client`.
-
-5. **`issue_tracker_client_adapter`**
-    Adapter implementing `IssueTrackerClient` by delegating to the remote service via the auto-generated client. Achieves location transparency through the Adapter Pattern.
 
 ## Dependency Injection Flow
 ```python
@@ -155,18 +121,6 @@ Project documentation is organized as follows:
 
 - [Implementation Documentation](components/issue_tracker_client_impl.md)
     Detailed documentation for the `issue_tracker_client_impl` package.
-
-- [Service Documentation](components/issue_tracker_client_service.md)
-    Detailed documentation for the FastAPI service.
-
-- [Service Client Documentation](components/issue_tracker_client_service_client.md)
-    Documentation for the auto-generated HTTP client.
-
-- [Adapter Documentation](components/issue_tracker_client_adapter.md)
-    Documentation for the service client adapter.
-
-- [Design Document](design.md)
-    Architecture and design decisions for HW2: Adapter Pattern, OAuth flow, deployment.
 
 - [Component Architecture](component.md)
     Explains the system design, abstraction layer, and dependency injection approach.
