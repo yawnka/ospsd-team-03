@@ -37,52 +37,40 @@ The project is a `uv` workspace containing two primary packages:
 
 ```text
 ospsd-team-03
-├── .circleci           
-│    └── config.yml                        # CI pipeline: runs linting, type-checking, tests, coverage
-│  
-├── .github
-│   ├── ISSUE_TEMPLATE/                    # GitHub issue templates for bug reports & feature requests
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
-│   │
-│   ├── PULL_REQUEST.md                    # Pull request template for structured submissions
+├── .circleci/
+│   └── config.yml                        # CI pipeline: lint, type-check, test, deploy
 │
-├── components
-│   ├── issue_tracker_client_api/          # Interface component (provider-agnostic contract)
-│   │   ├── src/
-│   │   │   ├── __init__.py
-│   │   │   └── client.py                  # Abstract Base Classes + DI factory (get_client)
-│   │   ├── pyproject.toml                 # Package metadata and dependencies
-│   │   ├── README.md                      # Interface-specific documentation
-│   │   └── tests/                         # Unit tests for interface behavior
-│   │       └── test_client_api.py
-│   │
-│   └── issue_tracker_client_impl/         # Trello implementation component
-│       ├── src/
-│       │   └── __init__.py                # Registers implementation via Dependency Injection
-│       │   └── client.py                  # Concrete Trello client implementation
-│       ├── pyproject.toml                 # Package metadata and provider dependencies
-│       ├── README.md                      # Implementation-specific documentation
-│       └── tests/                         # Unit tests (mocking Trello API where applicable)
-│           └── test_impl.py                
+├── .github/
+│   ├── ISSUE_TEMPLATE/                   # GitHub issue templates
+│   └── PULL_REQUEST.md                   # Pull request template
+│
+├── components/
+│   ├── issue_tracker_client_api/         # Interface (provider-agnostic ABC contract)
+│   ├── issue_tracker_client_impl/        # Trello implementation
+│   ├── issue_tracker_client_service/     # FastAPI service (deployed on Cloud Run)
+│   ├── issue_tracker_client_service_client/  # Auto-generated HTTP client
+│   └── issue_tracker_client_adapter/     # Adapter (ABC → generated client)
+│
+├── infrastructure/
+│   ├── terraform/                        # IaC: Cloud Run, Artifact Registry, Secret Manager
+│   │   ├── main.tf                       # Provider + GCS backend
+│   │   ├── cloudrun.tf                   # Cloud Run service, secrets, IAM
+│   │   ├── variables.tf                  # Input variables
+│   │   └── outputs.tf                    # Service URL output
+│   └── grafana/
+│       └── dashboard.json                # Grafana dashboard (Latency, Success, Failure)
 │
 ├── tests/
-│   ├── integration/                       # Integration tests (verifies DI wiring and client contract)
-│   │   └── test_client_integration.py
-│   │
-│   └── e2e/                               # End-to-end tests using real Trello credentials
-│       └── test_main_application.py
+│   ├── integration/                      # DI wiring tests
+│   └── e2e/                              # End-to-end tests
 │
-├── docs/                                   
-│   ├── components     
-│   │   ├── issue_tracker_client_api.md
-│   │   └── issue_tracker_client_impl.md 
-│   └── index.md                        
+├── docs/                                 # MkDocs documentation source
+├── Dockerfile                            # Multi-stage Docker build
 ├── mkdocs.yml                            # MkDocs configuration
 ├── pyproject.toml                        # Shared tooling config (ruff, mypy, pytest, coverage)
-├── README.md                             # Root project documentation
+├── DESIGN.md                             # Architecture and design decisions
 ├── uv.lock                               # Locked dependency versions
-└── LICENSE
+└── README.md
 ```
 
 ## Project Setup
@@ -134,7 +122,7 @@ ospsd-team-03
 4.  **Create and Sync the Virtual Environment:**
     This command creates a `.venv` folder and installs all packages (including workspace members and development tools) defined in `uv.lock`.
     ```bash
-    uv sync --all-packages --extra dev
+    uv sync --all-packages --group dev
     ```
 
 5.  **Activate the Virtual Environment:**
@@ -229,15 +217,46 @@ The testing infrastructure handles different authentication scenarios:
 - **Missing Credentials**: Tests fail fast with clear error messages (no hanging)
 - - If `TRELLO_BOARD_ID` is not set, some E2E tests will be skipped.
 
+## Deployment
+
+The service is deployed on **GCP Cloud Run** with infrastructure managed by **Terraform**.
+
+### Cloud Run
+
+- Docker image is built and pushed to GCP Artifact Registry
+- Cloud Run serves the FastAPI application with auto-scaling (0–1 instances)
+- Sensitive credentials (Trello keys, OTLP headers) are stored in GCP Secret Manager
+
+### Infrastructure as Code
+
+All cloud resources are defined in `infrastructure/terraform/`:
+
+- Artifact Registry repository
+- Secret Manager secrets + IAM bindings
+- Cloud Run service with environment variables
+- Public access (allUsers invoker)
+
+Terraform state is stored in a GCS bucket (`ospsd-team-03-tfstate`).
+
+### Observability
+
+The service emits telemetry data via OpenTelemetry to Grafana Cloud:
+
+- **Request Latency** — p50, p95, p99 percentiles
+- **Success Rate** — percentage of 2xx responses
+- **Failure Rate** — percentage of 4xx/5xx responses
+
+Telemetry is opt-in: when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, the service runs without any observability overhead. The Grafana dashboard definition is committed at `infrastructure/grafana/dashboard.json`.
+
 ## Continuous Integration
 
-The project includes a comprehensive CircleCI configuration (`.circleci/config.yml`) with:
+The project includes a comprehensive CircleCI configuration (`.circleci/config.yml`):
 
-- Runs Ruff (linting)
-- Runs MyPy (strict mode)
-- Runs all tests (unit, integration, E2E)
-- Stores test results in CircleCI dashboard
-- Uploads coverage reports
+**`build_and_test`** (all branches):
+- Ruff (linting), MyPy (strict mode), unit tests, integration tests, coverage reports
+
+**`deploy_to_cloud_run`** (`hw-3` branch):
+- Build + push Docker image → Terraform plan → Terraform apply → Health check verification
 
 See `docs/circleci-setup.md` for detailed CI/CD setup instructions.
 

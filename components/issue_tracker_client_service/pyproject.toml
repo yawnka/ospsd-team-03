@@ -3,15 +3,22 @@ name = "issue-tracker-client-service"
 version = "0.1.0"
 description = "FastAPI service for the Trello-based issue tracker client"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.116.1",
     "uvicorn>=0.30.6",
     "issue-tracker-client-api",
     "issue-tracker-client-impl",
     "ospd-issue-tracker-api",
+    "ai-client-api",
+    "ai-client-impl",
     "pydantic>=2.11.7",
     "httpx>=0.27.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "chat-client-api",
+    "discord-client-impl",
 ]
 
 [build-system]
@@ -25,3 +32,8 @@ packages = ["src/issue_tracker_client_service"]
 issue-tracker-client-api = { workspace = true }
 issue-tracker-client-impl = { workspace = true }
 ospd-issue-tracker-api = { git = "https://github.com/tatyanacthomas/ospd_issue_tracker.git", branch = "main" }
+ai-client-api = { workspace = true }
+ai-client-impl = { workspace = true }
+
+chat-client-api = { git = "https://github.com/HarshithKoriRaj/Shared-API.git", rev = "1036a6e9ac40f3b209cfc35abdd8cc9561965cc1" }
+discord-client-impl = { git = "https://github.com/helinyi/ospsd-team-08.git", subdirectory = "components/discord_client_impl", rev = "59d03301fa41da1f5ca66e7268ccf835d8ac453f" }

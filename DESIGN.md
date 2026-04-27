@@ -1,4 +1,4 @@
-# HW2 Design Document
+# Design Document
 
 ## Overview
 
@@ -6,11 +6,13 @@ HW1 established two components: `issue_tracker_client_api` (an abstract interfac
 
 HW2 transforms that library into a publicly accessible microservice. Three new components were added on top of the HW1 foundation without modifying the original interface or implementation:
 
-- **`issue_tracker_client_service`** — exposes the implementation over HTTP (FastAPI, deployed on Render)
+- **`issue_tracker_client_service`** — exposes the implementation over HTTP (FastAPI, deployed on GCP Cloud Run)
 - **`issue_tracker_client_service_client`** — a type-safe Python client auto-generated from the service's OpenAPI spec
 - **`issue_tracker_client_adapter`** — implements the original `IssueTrackerClient` ABC by delegating to the generated client
 
 The central design goal is **location transparency**: consumer code that works with the local implementation also works identically with the remote adapter, with no changes required.
+
+HW3 adds infrastructure as code (Terraform), observability (OpenTelemetry + Grafana Cloud), and a fully automated CI/CD pipeline that builds, deploys, and verifies the service on every push.
 
 ---
 
@@ -25,7 +27,7 @@ Consumer → get_client() → ServiceClientAdapter
                                ↓ HTTP (httpx)
                    issue_tracker_client_service_client
                                ↓ HTTP
-                   issue_tracker_client_service (FastAPI, Render)
+                   issue_tracker_client_service (FastAPI, GCP Cloud Run)
                                ↓
                    DefaultIssueTrackerClient → Trello REST API
 ```
@@ -52,7 +54,7 @@ Only the import changes. The registered DI factory switches transparently.
 
 ### Responsibility
 
-Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the only component in the system that runs as a separate process (Docker container on Render).
+Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the only component in the system that runs as a separate process (Docker container on GCP Cloud Run).
 
 ### Module Breakdown
 
@@ -62,6 +64,7 @@ Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the onl
 | `schemas.py` | Pydantic request/response models for the HTTP wire format (separate from domain models) |
 | `session.py` | In-memory session store: `dict[str, UserSession]` keyed by `session_id` |
 | `auth.py` | One-time CSRF state nonces: `create_state()` / `consume_state()` backed by `set[str]` |
+| `telemetry.py` | OpenTelemetry instrumentation: tracing, metrics, and FastAPI auto-instrumentation (no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset) |
 
 ### Authorization Flow
 
@@ -112,17 +115,22 @@ A fallback using `TRELLO_API_TOKEN` and `TRELLO_API_KEY` exists for CI and non-b
 
 ### Deployment
 
-The service runs as a Docker container on [Render](https://render.com). The `Dockerfile` uses a two-stage build: a builder stage installs dependencies with `uv sync --no-dev --frozen`, and a slim runtime stage copies only the installed packages. This keeps the production image lean.
+The service runs as a Docker container on GCP Cloud Run. The `Dockerfile` uses a two-stage build: a builder stage installs dependencies with `uv sync --no-dev --frozen`, and a slim runtime stage copies only the installed packages. This keeps the production image lean.
 
-Every push to the `hw-2` branch triggers a CircleCI pipeline that runs lint, type checks, and tests, then calls the Render deploy hook to redeploy the service. The live URL is `https://ospsd-team-03.onrender.com`.
+All infrastructure is managed by Terraform (see [Infrastructure as Code](#infrastructure-as-code-terraform) below). Every push to the `hw-3` branch triggers a CircleCI pipeline that builds the Docker image, pushes it to Artifact Registry, runs `terraform plan` and `terraform apply`, then verifies the deployment via a health check.
 
-Required environment variables (set via Render's secrets manager — never committed):
+Required environment variables (sensitive values stored in GCP Secret Manager — never committed):
 
-| Variable | Purpose |
-|----------|---------|
-| `TRELLO_API_KEY` | Trello application key |
-| `TRELLO_API_TOKEN` | Fallback Trello token (used when no session exists) |
-| `REDIRECT_URI` | OAuth callback URL (differs between local and production) |
+| Variable | Purpose | Source |
+|----------|---------|--------|
+| `TRELLO_API_KEY` | Trello application key | Secret Manager |
+| `TRELLO_API_TOKEN` | Fallback Trello token (used when no session exists) | Secret Manager |
+| `REDIRECT_URI` | OAuth callback URL (differs between local and production) | Terraform variable |
+| `ENV` | Set to `production` for Secure cookies | Terraform (hardcoded) |
+| `ALLOWED_ORIGIN` | CORS origin (optional) | Terraform variable |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Grafana Cloud OTLP endpoint (optional; empty = telemetry disabled) | Terraform variable |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Grafana Cloud authentication header | Secret Manager |
+| `OTEL_SERVICE_NAME` | OpenTelemetry service name | Terraform variable |
 
 ---
 
@@ -200,7 +208,7 @@ The `base_url` is read from the environment at instantiation time (not at import
 |-----------|-----------|
 | `issue_tracker_client_api` | (none — pure stdlib) |
 | `issue_tracker_client_impl` | `issue_tracker_client_api`, `requests` |
-| `issue_tracker_client_service` | `issue_tracker_client_impl`, `fastapi`, `uvicorn` |
+| `issue_tracker_client_service` | `issue_tracker_client_impl`, `fastapi`, `uvicorn`, `opentelemetry-*` |
 | `issue_tracker_client_service_client` | `httpx`, `attrs`, `python-dateutil` (generated) |
 | `issue_tracker_client_adapter` | `issue_tracker_client_api`, `issue_tracker_client_service_client` |
 
@@ -241,3 +249,90 @@ See [Testing Strategy](testing.md) for the full guide. HW2-specific additions:
 - **Integration tests** (`tests/integration/test_client_integration.py`): Verify that importing `issue_tracker_client_impl` correctly wires the DI registry and that `get_client()` returns a `DefaultIssueTrackerClient`.
 - **E2E tests** (`tests/e2e/test_main_application.py`): Exercise user-visible behavior through the client interface. Service and adapter behavior is additionally covered through HTTP-path integration tests.
 - **OAuth flow**: Requires a browser interaction and cannot be fully automated in CI. Tests focus on the post-token logic (session creation, client instantiation). The auth flow is validated manually.
+- **Telemetry unit tests** (`components/issue_tracker_client_service/tests/test_telemetry.py`): Verify that `setup_telemetry` is a no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, configures providers correctly when set, parses OTLP headers, and handles edge cases (trailing slashes, URL-encoded values).
+
+---
+
+## Infrastructure as Code (Terraform)
+
+All cloud resources are defined in `infrastructure/terraform/` and managed exclusively through Terraform. No manual `gcloud` commands are used for resource provisioning.
+
+### Resources Managed
+
+| Resource | Terraform Resource Type | Purpose |
+|----------|------------------------|---------|
+| Artifact Registry | `google_artifact_registry_repository` | Docker image storage |
+| Secret Manager secrets | `google_secret_manager_secret` (x3) | Trello API key, Trello API token, OTLP headers |
+| Service account | `google_service_account` | Cloud Run runtime identity |
+| Secret IAM bindings | `google_secret_manager_secret_iam_member` (x3) | Grant SA access to secrets |
+| Cloud Run service | `google_cloud_run_v2_service` | Application container |
+| Public access | `google_cloud_run_v2_service_iam_member` | Allow unauthenticated invocations |
+
+### State Management
+
+Terraform state is stored in a GCS bucket (`ospsd-team-03-tfstate`), enabling shared state across local development and CI without committing sensitive state files.
+
+### Bootstrap Gating
+
+The `enable_service` variable (default `false`) allows a two-phase bootstrap:
+
+1. `terraform apply` with `enable_service=false` — creates secrets, service account, and IAM bindings
+2. Populate secret versions via `gcloud secrets versions add`
+3. `terraform apply` with `enable_service=true` — creates the Cloud Run service (secrets are now available)
+
+CI always passes `enable_service=true` because secrets are already populated.
+
+### Security
+
+Sensitive values (Trello credentials, OTLP headers) are stored in GCP Secret Manager and injected into Cloud Run containers via `secret_key_ref`. These values never appear in Terraform state or in plain-text environment variable definitions.
+
+---
+
+## Observability & Telemetry
+
+### Architecture
+
+```text
+FastAPI (Cloud Run)
+  → OpenTelemetry SDK (auto-instrumentation)
+    → OTLP HTTP exporter
+      → Grafana Cloud (metrics + traces)
+        → Grafana Dashboard (3 panels)
+```
+
+### Instrumentation
+
+`telemetry.py` configures OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set:
+
+- **Tracing**: `TracerProvider` with `BatchSpanProcessor` → OTLP HTTP exporter (`/v1/traces`)
+- **Metrics**: `MeterProvider` with `PeriodicExportingMetricReader` (10s interval) → OTLP HTTP exporter (`/v1/metrics`)
+- **FastAPI auto-instrumentation**: `FastAPIInstrumentor` emits `http.server.duration` histograms and per-status-code request counters
+
+The 10-second export interval (vs. the default 60s) ensures metrics flush before Cloud Run scales the instance to zero.
+
+When the endpoint is unset, `setup_telemetry` is a no-op — local development and tests run without any observability infrastructure.
+
+### Grafana Dashboard
+
+The dashboard (`infrastructure/grafana/dashboard.json`) has three panels:
+
+1. **Request Latency (p50 / p95 / p99)** — `histogram_quantile` over `http_server_duration_milliseconds_bucket`
+2. **Success Rate (2xx)** — ratio of 2xx responses to total requests
+3. **Failure Rate (4xx / 5xx)** — ratio of 4xx+5xx responses to total requests
+
+---
+
+## CI/CD Pipeline
+
+### Workflows
+
+**`build_and_test`** (all branches): build → lint → type_check → unit_test → integration_test → coverage_report
+
+**`deploy_to_cloud_run`** (`hw-3` branch): build → lint + type_check + unit_test → build_and_push_image → terraform_plan → terraform_apply → verify_health
+
+### Deploy Pipeline Steps
+
+1. **build_and_push_image** — authenticates to GCP, builds Docker image, pushes to Artifact Registry with `$CIRCLE_SHA1` tag
+2. **terraform_plan** — runs `terraform plan` with the new image tag to preview changes
+3. **terraform_apply** — applies the plan and persists the service URL to workspace
+4. **verify_health** — polls `<service_url>/health` with retries until HTTP 200
