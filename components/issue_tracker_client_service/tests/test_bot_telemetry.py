@@ -33,7 +33,7 @@ class TestSetupBotTelemetry:
         """Without OTEL_EXPORTER_OTLP_ENDPOINT, returns disabled metrics."""
         with patch.dict("os.environ", {}, clear=True):
             metrics = setup_bot_telemetry()
-        assert not metrics._enabled  # noqa: SLF001 — testing internal state
+        assert not metrics._enabled
 
     def test_returns_enabled_when_endpoint_set(self) -> None:
         """With OTEL_EXPORTER_OTLP_ENDPOINT, returns enabled metrics."""
@@ -43,4 +43,4 @@ class TestSetupBotTelemetry:
         }
         with patch.dict("os.environ", env, clear=True):
             metrics = setup_bot_telemetry()
-        assert metrics._enabled  # noqa: SLF001 — testing internal state
+        assert metrics._enabled
