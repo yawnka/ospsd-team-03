@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 
 import discord
 import discord_client_impl  # noqa: F401 — register chat-client DI before get_client()
@@ -11,12 +12,18 @@ from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 import ai_client_impl  # noqa: F401 — register AI-client DI before get_client()
 from issue_tracker_client_service.ai_router import run_ai_chat
 from issue_tracker_client_service.ai_schemas import AIChatIn
+from issue_tracker_client_service.bot_telemetry import setup_bot_telemetry
 
 logger = logging.getLogger(__name__)
 
 
 class IssueTrackerBot(discord.Client):
     """Discord bot that sends mentions to the AI issue tracker."""
+
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize bot with OTel metrics."""
+        super().__init__(**kwargs)  # type: ignore[arg-type]  # forwarding to discord.Client
+        self._metrics = setup_bot_telemetry()
 
     async def on_ready(self) -> None:
         """Handle bot startup and confirm successful login."""
@@ -40,6 +47,7 @@ class IssueTrackerBot(discord.Client):
             )
             return
 
+        start = time.monotonic()
         try:
             issue_tracker_client = DefaultIssueTrackerClient(
                 api_key=os.environ["TRELLO_API_KEY"],
@@ -55,6 +63,7 @@ class IssueTrackerBot(discord.Client):
                 channel_id=str(message.channel.id),
                 text=f"AI response:\n{response.reply}"
             )
+            self._metrics.record_success(time.monotonic() - start)
 
         except Exception:
             logger.exception("Discord AI command failed")
@@ -62,6 +71,7 @@ class IssueTrackerBot(discord.Client):
                 channel_id=str(message.channel.id),
                 text="Sorry, I couldn't complete that issue tracker request.",
             )
+            self._metrics.record_failure(time.monotonic() - start)
 
 
 

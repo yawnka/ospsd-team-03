@@ -296,6 +296,12 @@ resource "google_secret_manager_secret_iam_member" "bot_openai_api_key" {
   member    = "serviceAccount:${google_service_account.discord_bot.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "bot_otel_otlp_headers" {
+  secret_id = google_secret_manager_secret.otel_otlp_headers.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.discord_bot.email}"
+}
+
 # Bot SA → Artifact Registry reader (to pull bot Docker image)
 
 resource "google_artifact_registry_repository_iam_member" "bot_reader" {
@@ -360,6 +366,7 @@ resource "google_compute_instance" "discord_bot" {
     TRELLO_API_KEY=$(fetch_secret trello-api-key)
     TRELLO_API_TOKEN=$(fetch_secret trello-api-token)
     OPENAI_API_KEY=$(fetch_secret openai-api-key)
+    OTEL_HEADERS=$(fetch_secret otel-otlp-headers)
 
     # --- Run bot container (idempotent: safe on reboot) ---
     docker rm -f discord-bot 2>/dev/null || true
@@ -370,6 +377,9 @@ resource "google_compute_instance" "discord_bot" {
       -e TRELLO_API_KEY="$${TRELLO_API_KEY}" \
       -e TRELLO_API_TOKEN="$${TRELLO_API_TOKEN}" \
       -e OPENAI_API_KEY="$${OPENAI_API_KEY}" \
+      -e OTEL_EXPORTER_OTLP_ENDPOINT="${var.otel_exporter_otlp_endpoint}" \
+      -e OTEL_EXPORTER_OTLP_HEADERS="$${OTEL_HEADERS}" \
+      -e OTEL_SERVICE_NAME="discord-bot" \
       "$${IMAGE}"
   SCRIPT
 
@@ -379,6 +389,7 @@ resource "google_compute_instance" "discord_bot" {
     google_secret_manager_secret_iam_member.bot_trello_api_key,
     google_secret_manager_secret_iam_member.bot_trello_api_token,
     google_secret_manager_secret_iam_member.bot_openai_api_key,
+    google_secret_manager_secret_iam_member.bot_otel_otlp_headers,
     google_artifact_registry_repository_iam_member.bot_reader,
   ]
 }
