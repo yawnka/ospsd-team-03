@@ -297,12 +297,18 @@ FastAPI (Cloud Run)
   → OpenTelemetry SDK (auto-instrumentation)
     → OTLP HTTP exporter
       → Grafana Cloud (metrics + traces)
-        → Grafana Dashboard (3 panels)
+
+Discord Bot (GCE e2-micro)
+  → OpenTelemetry SDK (custom metrics)
+    → OTLP HTTP exporter
+      → Grafana Cloud (metrics)
+
+Both → Grafana Dashboard (7 panels)
 ```
 
 ### Instrumentation
 
-`telemetry.py` configures OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set:
+**Cloud Run service** — `telemetry.py` configures OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set:
 
 - **Tracing**: `TracerProvider` with `BatchSpanProcessor` → OTLP HTTP exporter (`/v1/traces`)
 - **Metrics**: `MeterProvider` with `PeriodicExportingMetricReader` (10s interval) → OTLP HTTP exporter (`/v1/metrics`)
@@ -310,15 +316,34 @@ FastAPI (Cloud Run)
 
 The 10-second export interval (vs. the default 60s) ensures metrics flush before Cloud Run scales the instance to zero.
 
-When the endpoint is unset, `setup_telemetry` is a no-op — local development and tests run without any observability infrastructure.
+**Discord Bot** — `bot_telemetry.py` emits three custom metrics via the same OTLP pipeline:
+
+- `discord.bot.command.duration` (histogram) — AI command latency in seconds
+- `discord.bot.command.success` (counter) — successful AI commands
+- `discord.bot.command.failure` (counter) — failed AI commands
+
+When the endpoint is unset, both `setup_telemetry` and `setup_bot_telemetry` are no-ops — local development and tests run without any observability infrastructure.
+
+### Why Two Compute Resources
+
+Cloud Run is request-driven and scales to zero between requests — ideal for the HTTP API. The Discord bot, however, must maintain a persistent WebSocket connection to the Discord Gateway, which is incompatible with Cloud Run's lifecycle model. A GCE `e2-micro` instance (Always Free tier) runs the bot as a long-lived process. Both resources are managed by Terraform.
 
 ### Grafana Dashboard
 
-The dashboard (`infrastructure/grafana/dashboard.json`) has three panels:
+The dashboard (`infrastructure/grafana/dashboard.json`) has seven panels across two sections:
 
-1. **Request Latency (p50 / p95 / p99)** — `histogram_quantile` over `http_server_duration_milliseconds_bucket`
+**Cloud Run service** (`service_name="issue-tracker-service"`):
+
+1. **Request Latency (p50 / p95 / p99)** — `histogram_quantile` over `http_server_request_duration_seconds_bucket`
 2. **Success Rate (2xx)** — ratio of 2xx responses to total requests
-3. **Failure Rate (4xx / 5xx)** — ratio of 4xx+5xx responses to total requests
+3. **Client Error Rate (4xx)** — ratio of 4xx responses to total requests
+4. **Server Error Rate (5xx)** — ratio of 5xx responses to total requests
+
+**Discord Bot** (`service_name="discord-bot"`):
+
+5. **Command Latency (p50 / p95 / p99)** — `histogram_quantile` over `discord_bot_command_duration_seconds_bucket`
+6. **Success Rate** — rate of `discord_bot_command_success_total`
+7. **Failure Rate** — rate of `discord_bot_command_failure_total`
 
 ---
 
