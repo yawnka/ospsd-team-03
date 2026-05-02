@@ -171,7 +171,8 @@ jobs:
       - image: google/cloud-sdk:slim
     steps:
       - checkout
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: false
       - run:
           name: "Install Docker CLI"
           command: |
@@ -202,7 +203,8 @@ jobs:
       - image: google/cloud-sdk:slim
     steps:
       - checkout
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: false
       - run:
           name: "Install Docker CLI"
           command: |
