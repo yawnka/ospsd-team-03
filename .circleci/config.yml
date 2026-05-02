@@ -171,8 +171,7 @@ jobs:
       - image: google/cloud-sdk:slim
     steps:
       - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: "Install Docker CLI"
           command: |
@@ -203,8 +202,7 @@ jobs:
       - image: google/cloud-sdk:slim
     steps:
       - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: "Install Docker CLI"
           command: |
@@ -286,14 +284,11 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run:
-          name: "Wait for Cloud Run revision to become ready"
-          command: sleep 30
-      - run:
           name: "Health Check"
           command: |
             SERVICE_URL=$(cat /tmp/workspace/service_url.txt)
             echo "Checking health at: ${SERVICE_URL}/health"
-            for i in 1 2 3 4 5; do
+            for i in 1 2 3 4 5 6 7 8; do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health" || true)
               if [ "$STATUS" = "200" ]; then
                 echo "Health check passed (attempt $i)"
@@ -302,7 +297,7 @@ jobs:
               echo "Attempt $i: status=$STATUS, retrying in 10s..."
               sleep 10
             done
-            echo "Health check failed after 5 attempts"
+            echo "Health check failed after 8 attempts"
             exit 1
 
 
