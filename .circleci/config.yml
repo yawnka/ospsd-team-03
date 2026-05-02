@@ -176,7 +176,8 @@ jobs:
       - run:
           name: "Install Docker CLI"
           command: |
-            apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
       - run:
           name: "Authenticate to GCP"
           command: |
@@ -208,7 +209,8 @@ jobs:
       - run:
           name: "Install Docker CLI"
           command: |
-            apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
       - run:
           name: "Authenticate to GCP"
           command: |
