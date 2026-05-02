@@ -172,11 +172,12 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: false
+          docker_layer_caching: true
       - run:
           name: "Install Docker CLI"
           command: |
-            apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
       - run:
           name: "Authenticate to GCP"
           command: |
@@ -204,11 +205,12 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: false
+          docker_layer_caching: true
       - run:
           name: "Install Docker CLI"
           command: |
-            apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
       - run:
           name: "Authenticate to GCP"
           command: |
@@ -335,6 +337,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - lint:
           requires:
             - build
@@ -343,6 +346,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - type_check:
           requires:
             - build
@@ -351,6 +355,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - unit_test:
           requires:
             - build
@@ -359,6 +364,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - build_and_push_image:
           requires:
             - lint
@@ -369,6 +375,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - build_and_push_bot_image:
           requires:
             - lint
@@ -379,6 +386,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - terraform_plan:
           requires:
             - build_and_push_image
@@ -388,6 +396,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - terraform_apply:
           requires:
             - terraform_plan
@@ -396,6 +405,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
       - verify_health:
           requires:
             - terraform_apply
@@ -404,3 +414,4 @@ workflows:
               only:
                 - main
                 - hw-3
+                - fix/restore-docker-layer-caching
