@@ -11,7 +11,9 @@ from api.board import Board as SharedBoard  # type: ignore[import-untyped]
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
 from api.issue import Status as SharedStatus
-from chat_client_api import get_client as get_chat_client
+from chat_client_api import (  # type: ignore[import-untyped]
+    get_client as get_chat_client,
+)
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse

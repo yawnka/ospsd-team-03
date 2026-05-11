@@ -36,6 +36,19 @@ class AIClient(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> object:
+        """Create a chat completion, optionally with tool definitions.
+
+        This keeps provider SDK details hidden behind the AIClient interface.
+        """
+        raise NotImplementedError
+
 
 _factory: Callable[[], AIClient] | None = None
 

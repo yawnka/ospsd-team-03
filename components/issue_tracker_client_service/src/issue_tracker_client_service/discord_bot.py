@@ -6,7 +6,9 @@ import time
 
 import discord
 import discord_client_impl  # noqa: F401 — register chat-client DI before get_client()
-from chat_client_api import get_client as get_chat_client
+from chat_client_api import (  # type: ignore[import-untyped]
+    get_client as get_chat_client,
+)
 from issue_tracker_client_impl.client import DefaultIssueTrackerClient
 
 import ai_client_impl  # noqa: F401 — register AI-client DI before get_client()

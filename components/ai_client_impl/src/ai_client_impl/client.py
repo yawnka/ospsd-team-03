@@ -1,14 +1,15 @@
 """OpenAI implementation of the shared AI client API."""
-from typing import Any
+from typing import Any, cast
 
 from ai_client_api.client import AIClient, AIClientError
 from openai import OpenAI
 
+DEFAULT_MODEL = "gpt-4o-mini"
 
 class OpenAIAIClient(AIClient):
     """Concrete AI client backed by the OpenAI API."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini") -> None:
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL) -> None:
         """Initialize the OpenAI AI client."""
         self._client = OpenAI(api_key=api_key)
         self._model = model
@@ -46,24 +47,31 @@ class OpenAIAIClient(AIClient):
 
         messages.append({"role": "user", "content": prompt})
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=messages,
-        )
+        response = cast("Any", self.create_chat_completion(messages=messages))
 
         content = response.choices[0].message.content
         if not content:
             msg = "OpenAI response did not contain text content."
             raise AIClientError(msg)
 
-        return content.strip()
+        return str(content).strip()
 
-    @property
-    def client(self) -> OpenAI:
-        """Return the underlying OpenAI SDK client."""
-        return self._client
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> object:
+        """Create a chat completion using the private OpenAI SDK client."""
+        if tools is None:
+            return self._client.chat.completions.create(
+                model=self._model,
+                messages=cast("Any", messages),
+            )
 
-    @property
-    def model(self) -> str:
-        """Return the configured OpenAI model name."""
-        return self._model
+        return self._client.chat.completions.create(
+            model=self._model,
+            messages=cast("Any", messages),
+            tools=cast("Any", tools),
+            tool_choice=cast("Any", tool_choice),
+        )
