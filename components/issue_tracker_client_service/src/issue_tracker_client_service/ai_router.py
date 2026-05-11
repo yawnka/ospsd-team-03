@@ -97,21 +97,24 @@ def run_ai_chat(
 
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
-            raw_result, detail = execute_tool(
-                client=issue_tracker_client,
-                tool_name=tool_name,
-                arguments_json=tool_call.function.arguments,
-            )
-
-            actions.append(AIActionOut(tool=tool_name, detail=detail))
-            if on_tool_executed is not None:
-                on_tool_executed(tool_name, raw_result, detail)
+            try:
+                raw_result, detail = execute_tool(
+                    client=issue_tracker_client,
+                    tool_name=tool_name,
+                    arguments_json=tool_call.function.arguments,
+                )
+                actions.append(AIActionOut(tool=tool_name, detail=detail))
+                if on_tool_executed is not None:
+                    on_tool_executed(tool_name, raw_result, detail)
+                tool_content = serialize_tool_result(raw_result)
+            except Exception as exc:  # noqa: BLE001
+                tool_content = f"Error executing {tool_name!r}: {exc}"
 
             messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": serialize_tool_result(raw_result),
+                    "content": tool_content,
                 }
             )
 
