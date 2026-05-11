@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from api.client import Client  # noqa: TC002
-from api.issue import Status
+from api.client import Client  # type: ignore[import-untyped]  # noqa: TC002
+from api.issue import Status  # type: ignore[import-untyped]
 
 TOOLS: list[dict[str, Any]] = [
     {

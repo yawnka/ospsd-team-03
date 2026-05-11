@@ -11,7 +11,9 @@ from api.board import Board as SharedBoard  # type: ignore[import-untyped]
 from api.client import Client as SharedClient  # type: ignore[import-untyped]
 from api.issue import Issue as SharedIssue  # type: ignore[import-untyped]
 from api.issue import Status as SharedStatus
-from chat_client_api import get_client as get_chat_client
+from chat_client_api import (  # type: ignore[import-untyped]
+    get_client as get_chat_client,
+)
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -35,6 +37,7 @@ from issue_tracker_client_impl.oauth import build_authorization_url
 from issue_tracker_client_service.ai_router import run_ai_chat
 from issue_tracker_client_service.ai_schemas import AIChatIn, AIChatOut
 from issue_tracker_client_service.auth import consume_state, create_state
+from issue_tracker_client_service.chat_provider import register_chat_client
 from issue_tracker_client_service.schemas import (
     AuthStatusOut,
     BoardOut,
@@ -61,11 +64,6 @@ def _register_ai_client() -> None:
     import ai_client_impl  # noqa: F401, PLC0415
 logger = logging.getLogger(__name__)
 
-def _register_chat_client() -> None:
-    """Ensure chat client implementation is registered."""
-    import discord_client_impl  # noqa: F401,  PLC0415
-
-
 def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
     value = os.getenv(var_name)
@@ -88,7 +86,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Validate service configuration before accepting requests."""
     _validate_required_env()
     _register_ai_client()
-    _register_chat_client()
+    register_chat_client()
     yield
 
 
@@ -461,13 +459,14 @@ def create_issue(
     board_id: str,
     payload: CreateIssueIn,
     client: ClientDependency,
+
 ) -> IssueOut:
     """Create an issue using the shared API contract."""
     try:
         issue = client.create_issue(
             title=payload.title,
             board_id=board_id,
-            desc=payload.desc,
+            desc=payload.description,
             members=payload.members,
             due_date=payload.due_date,
             status=payload.status,
@@ -480,7 +479,8 @@ def create_issue(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create issue in board '{board_id}'",
+            detail=f"Unexpected error while creating issue in board \
+                '{board_id}': {exc}",
         ) from exc
     else:
         out = _issue_to_out(issue)
@@ -508,14 +508,13 @@ def update_issue(
             board_id=payload.board_id,
         )
     except IssueNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Issue {issue_id} not found",
-        ) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update issue '{issue_id}'",
+            detail=f"Unexpected error while updating issue '{issue_id}': {exc}",
         ) from exc
     else:
         return _issue_to_out(issue)

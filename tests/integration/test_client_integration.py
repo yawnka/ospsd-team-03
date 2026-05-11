@@ -98,6 +98,7 @@ def test_registered_client_exposes_interface_methods(
     for method in expected:
         assert callable(getattr(client, method))
 
+
 HTTP_OK = 200
 
 # Required env vars for the FastAPI lifespan startup validator.
@@ -115,21 +116,70 @@ def _set_startup_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(name, value)
 
 
+class FakeMessage:
+    """Fake AI response message."""
+
+    def __init__(
+        self,
+        content: str | None,
+        tool_calls: list[object] | None = None,
+    ) -> None:
+        """Initialize the fake AI response message."""
+        self.content = content
+        self.tool_calls = tool_calls
+
+
+class FakeChoice:
+    """Fake AI response choice."""
+
+    def __init__(self, message: FakeMessage) -> None:
+        """Initialize the fake AI response choice."""
+        self.message = message
+
+
+class FakeResponse:
+    """Fake AI completion response."""
+
+    def __init__(self, message: FakeMessage) -> None:
+        """Initialize the fake AI completion response."""
+        self.choices = [FakeChoice(message)]
+
+
+class FakeAIClient:
+    """Fake AI client returning a configured plain-text completion."""
+
+    def __init__(self, reply: str) -> None:
+        """Initialize the fake AI client."""
+        self._reply = reply
+
+    def send_message(
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+    ) -> str:
+        """Return a fake plain-text response."""
+        _ = prompt, context
+        return self._reply
+
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> FakeResponse:
+        """Return a fake non-tool chat completion response."""
+        _ = messages
+        _ = tools
+        _ = tool_choice
+        return FakeResponse(FakeMessage(content=self._reply, tool_calls=[]))
+
+
 def test_ai_chat_plain(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify /ai/chat returns a response using the injected AI client."""
     _set_startup_env(monkeypatch)
 
-    class FakeAIClient:
-        def send_message(
-            self,
-            prompt: str,
-            context: dict[str, Any] | None = None,
-        ) -> str:
-            _ = prompt, context
-            return "Hello from AI"
-
     def fake_get_ai_client() -> FakeAIClient:
-        return FakeAIClient()
+        return FakeAIClient("Hello from AI")
 
     monkeypatch.setattr(
         "issue_tracker_client_service.ai_router.get_client",
@@ -143,30 +193,16 @@ def test_ai_chat_plain(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resp.json() == {"reply": "Hello from AI", "actions": []}
 
 
-def test_ai_chat_non_tool_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify /ai/chat falls back to send_message when no SDK surface is present.
-
-    The registered AI client lacks ``_client``/``_model``, so ``run_ai_chat``
-    must route through ``send_message`` and return the plain text reply with
-    an empty actions list.
-    """
+def test_ai_chat_non_tool_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify /ai/chat returns plain text when the model calls no tools."""
     _set_startup_env(monkeypatch)
-
-    class FakeAIClient:
-        def send_message(
-            self,
-            prompt: str,
-            context: dict[str, Any] | None = None,
-        ) -> str:
-            _ = prompt, context
-            return "listed 0 boards"
 
     class FakeIssueTracker:
         def get_boards(self) -> list[object]:
             return []
 
     def fake_get_ai_client() -> FakeAIClient:
-        return FakeAIClient()
+        return FakeAIClient("listed 0 boards")
 
     def fake_get_issue_tracker() -> FakeIssueTracker:
         return FakeIssueTracker()

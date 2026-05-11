@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ai_client_api import get_client
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ai_client_api.client import AIClient
-    from api.client import Client
+    from api.client import Client  # type: ignore[import-untyped]
 
 from issue_tracker_client_service.ai_schemas import AIActionOut, AIChatIn, AIChatOut
 from issue_tracker_client_service.ai_tools import (
@@ -43,23 +43,18 @@ def run_ai_chat(
     """Run the AI workflow for a chat request."""
     ai_client =ai_client or get_client()
 
-    if not hasattr(ai_client, "_client") or not hasattr(ai_client, "_model"):
-        reply = ai_client.send_message(prompt=payload.message, context=None)
-        return AIChatOut(reply=reply, actions=[])
-
-    sdk_client = ai_client.client
-    model = ai_client.model
-
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _build_system_prompt()},
         {"role": "user", "content": payload.message},
     ]
 
-    first_response = sdk_client.chat.completions.create(
-        model=model,
-        messages=messages,
-        tools=TOOLS,
-        tool_choice="auto",
+    first_response = cast(
+        "Any",
+        ai_client.create_chat_completion(
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+        ),
     )
 
     first_message = first_response.choices[0].message
@@ -109,10 +104,10 @@ def run_ai_chat(
             }
         )
 
-    final_response = sdk_client.chat.completions.create(
-        model=model,
-        messages=messages,
-    )
+    final_response = cast(
+        "Any",
+        ai_client.create_chat_completion(messages=messages),
+        )
 
     final_message = final_response.choices[0].message
     final_text = (final_message.content or "").strip()

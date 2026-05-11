@@ -145,6 +145,10 @@ resource "google_cloud_run_v2_service" "app" {
         name  = "ENV"
         value = "production"
       }
+      env {
+        name  = "CHAT_CLIENT_IMPL_MODULE"
+        value = var.chat_client_impl_module
+      }
 
       # Telemetry env vars — endpoint is plain (no secret), headers via Secret Manager
       dynamic "env" {

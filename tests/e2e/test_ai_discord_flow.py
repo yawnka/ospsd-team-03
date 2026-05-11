@@ -155,33 +155,12 @@ class _FakeResponse:
         self.choices = [_FakeChoice(message)]
 
 
-class _FakeCompletions:
+class _FakeAIClient:
+    """Fake AI client with the interface run_ai_chat needs for tool-calling."""
+
     def __init__(self, responses: list[_FakeResponse]) -> None:
         self._responses = responses
         self._call_count = 0
-
-    def create(self, **_kwargs: object) -> _FakeResponse:
-        response = self._responses[self._call_count]
-        self._call_count += 1
-        return response
-
-
-class _FakeChat:
-    def __init__(self, responses: list[_FakeResponse]) -> None:
-        self.completions = _FakeCompletions(responses)
-
-
-class _FakeSDKClient:
-    def __init__(self, responses: list[_FakeResponse]) -> None:
-        self.chat = _FakeChat(responses)
-
-
-class _FakeAIClient:
-    """Fake AI client with the attrs ``run_ai_chat`` needs for tool-calling."""
-
-    def __init__(self, responses: list[_FakeResponse]) -> None:
-        self._client = _FakeSDKClient(responses)
-        self._model = "fake-model"
 
     def send_message(
         self,
@@ -190,13 +169,19 @@ class _FakeAIClient:
     ) -> str:
         return "fallback response"
 
-    @property
-    def client(self) -> _FakeSDKClient:
-        return self._client
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]] | None = None,
+        tool_choice: str | None = None,
+    ) -> _FakeResponse:
+        _ = messages
+        _ = tools
+        _ = tool_choice
 
-    @property
-    def model(self) -> str:
-        return self._model
+        response = self._responses[self._call_count]
+        self._call_count += 1
+        return response
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────

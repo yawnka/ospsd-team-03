@@ -225,47 +225,72 @@ class DefaultIssueTrackerClient(Client):  # type: ignore[misc]
         )
         return target_list["id"] if target_list is not None else None
 
-    def update_issue(  # noqa: PLR0913
-        self,
-        issue_id: str,
-        title: str | None = None,
-        desc: str | None = None,
-        members: list[str] | None = None,
-        due_date: str | None = None,
-        status: Status | None = None,
-        board_id: str | None = None,
+    def update_issue(  # noqa: C901, PLR0913
+    self,
+    issue_id: str,
+    title: str | None = None,
+    desc: str | None = None,
+    members: list[str] | None = None,
+    due_date: str | None = None,
+    status: Status | None = None,
+    board_id: str | None = None,
     ) -> Issue:
         """Update fields on the card identified by *issue_id*.
 
         Raises:
             IssueNotFoundError: If the card does not exist.
+            ValueError: If Trello rejects the update for another reason.
 
         """
         params: dict[str, str] = {}
+
         if title is not None:
             params["name"] = title
+
         if desc is not None:
             params["desc"] = desc
+
         if due_date is not None:
             params["due"] = due_date
+
         if members is not None:
             params["idMembers"] = ",".join(members)
-        if board_id is not None:
-            params["idBoard"] = board_id
+
         if status is not None:
-            list_id = self._resolve_status_list_id(issue_id, status, board_id)
+            try:
+                list_id = self._resolve_status_list_id(issue_id, status, board_id)
+            except IssueNotFoundError:
+                raise
+            except Exception as exc:
+                msg = f"Failed to resolve status list for issue {issue_id!r}: {exc}"
+                raise ValueError(msg) from exc
+
             if list_id is not None:
                 params["idList"] = list_id
 
         try:
             updated: dict[str, Any] = self._put(f"cards/{issue_id}", **params)
         except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code in (400, 404):
+            if exc.response is None:
+                raise
+
+            status_code = exc.response.status_code
+            response_text = exc.response.text
+
+            if status_code == 404:  # noqa: PLR2004
                 msg = f"Issue {issue_id!r} not found"
                 raise IssueNotFoundError(msg) from exc
-            raise
 
-        list_info = self._get(f"lists/{updated['idList']}", fields="name")
+            msg = (
+                f"Trello update failed for issue {issue_id!r}: "
+                f"{status_code} {response_text}"
+            )
+            raise ValueError(msg) from exc
+
+        list_info: dict[str, Any] = self._get(
+            f"lists/{updated['idList']}",
+            fields="name",
+        )
         return self._issue_from_card(updated, updated["idBoard"], list_info["name"])
 
     def update_board(self, board_id: str, name: str | None = None) -> Board:

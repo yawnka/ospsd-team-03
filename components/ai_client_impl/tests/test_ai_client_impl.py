@@ -5,9 +5,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from ai_client_impl.client import OpenAIAIClient
+from ai_client_impl.client import DEFAULT_MODEL, OpenAIAIClient
 
 from ai_client_api import AIClientError
+from ai_client_impl import _factory
 
 
 def test_send_message_returns_text_response() -> None:
@@ -72,3 +73,26 @@ def test_send_message_raises_when_response_has_no_content() -> None:
 
     with pytest.raises(AIClientError):
         client.send_message("hello")
+
+def test_factory_uses_default_model_when_env_model_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Factory should use DEFAULT_MODEL when OPENAI_MODEL is not set."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+
+    client = _factory()
+
+    assert client._model == DEFAULT_MODEL
+
+
+def test_factory_uses_openai_model_env_var(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Factory should use OPENAI_MODEL when it is set."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "custom-test-model")
+
+    client = _factory()
+
+    assert client._model == "custom-test-model"

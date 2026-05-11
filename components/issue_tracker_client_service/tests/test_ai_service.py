@@ -186,44 +186,13 @@ class FakeResponse:
         """Initialize the fake completion response."""
         self.choices = [FakeChoice(message)]
 
-
-class FakeCompletions:
-    """Fake OpenAI chat completions client."""
-
-    def __init__(self, responses: list[FakeResponse]) -> None:
-        """Initialize the fake completions client."""
-        self._responses = responses
-        self._call_count = 0
-
-    def create(self, **_: object) -> FakeResponse:
-        """Return the next fake response in sequence."""
-        response = self._responses[self._call_count]
-        self._call_count += 1
-        return response
-
-
-class FakeChat:
-    """Fake OpenAI chat namespace."""
-
-    def __init__(self, responses: list[FakeResponse]) -> None:
-        """Initialize the fake chat namespace with predefined responses."""
-        self.completions = FakeCompletions(responses)
-
-
-class FakeSDKClient:
-    """Fake OpenAI SDK client."""
-
-    def __init__(self, responses: list[FakeResponse]) -> None:
-        """Initialize the fake SDK client with predefined responses."""
-        self.chat = FakeChat(responses)
-
 class FakeAIClient:
     """Fake registered AI client for tests."""
 
     def __init__(self, responses: list[FakeResponse]) -> None:
-        """Initialize the fake AI client with a fake SDK backend."""
-        self._client = FakeSDKClient(responses)
-        self._model = "fake-model"
+        """Initialize the fake AI client with fake responses."""
+        self._responses = responses
+        self._call_count = 0
 
     def send_message(
         self,
@@ -233,15 +202,20 @@ class FakeAIClient:
         """Return a fallback text response."""
         return "fallback response"
 
-    @property
-    def client(self) -> FakeSDKClient:
-        """Expose the fake SDK client."""
-        return self._client
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]] | None = None,
+        tool_choice: str | None = None,
+    ) -> FakeResponse:
+        """Return the next fake chat completion response."""
+        _ = messages
+        _ = tools
+        _ = tool_choice
 
-    @property
-    def model(self) -> str:
-        """Expose the fake model name."""
-        return self._model
+        response = self._responses[self._call_count]
+        self._call_count += 1
+        return response
 
 def test_ai_chat_returns_plain_text_when_no_tool_call() -> None:
     """Return plain text when the model does not call a tool."""

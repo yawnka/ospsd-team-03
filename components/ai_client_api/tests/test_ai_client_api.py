@@ -25,6 +25,18 @@ class MockAIClient(AIClient):
             return f"{prompt} | context={context}"
         return prompt
 
+    def create_chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> object:
+        """Return a fake chat completion object."""
+        _ = messages
+        _ = tools
+        _ = tool_choice
+        return object()
+
 
 def test_get_client_returns_registered_client() -> None:
     """get_client should return an instance from the registered factory."""
@@ -47,6 +59,18 @@ def test_register_replaces_previous_factory() -> None:
         ) -> str:
             return "first"
 
+        def create_chat_completion(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[dict[str, Any]] | None = None,
+            tool_choice: str | None = None,
+        ) -> object:
+            """Return a fake chat completion object."""
+            _ = messages
+            _ = tools
+            _ = tool_choice
+            return object()
+
     class SecondClient(AIClient):
         def send_message(
             self,
@@ -54,6 +78,18 @@ def test_register_replaces_previous_factory() -> None:
             _context: dict[str, Any] | None = None,
         ) -> str:
             return "second"
+
+        def create_chat_completion(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[dict[str, Any]] | None = None,
+            tool_choice: str | None = None,
+        ) -> object:
+            """Return a fake chat completion object."""
+            _ = messages
+            _ = tools
+            _ = tool_choice
+            return object()
 
     register(FirstClient)
     first = get_client()

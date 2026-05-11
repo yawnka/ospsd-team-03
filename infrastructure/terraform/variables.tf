@@ -78,6 +78,12 @@ variable "discord_notify_channel_id" {
   default     = ""
 }
 
+variable "chat_client_impl_module" {
+  description = "Python module that registers the shared chat-client implementation."
+  type        = string
+  default     = "discord_client_impl"
+}
+
 # ---------- Discord bot (GCE) ----------
 
 variable "enable_discord_bot" {
