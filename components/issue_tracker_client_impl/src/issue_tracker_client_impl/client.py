@@ -333,16 +333,20 @@ class DefaultIssueTrackerClient(Client):  # type: ignore[misc]
         return True
 
     def delete_board(self, board_id: str) -> bool:
-        """Delete the board identified by *board_id*.
+        """Close (archive) the board identified by *board_id*.
 
-        Returns True if successfully deleted.
+        Trello does not expose a public permanent-delete endpoint for boards;
+        closing via PUT closed=true is the standard operation and what the
+        Trello web UI does when a user "closes" a board.
+
+        Returns True if successfully closed.
 
         Raises:
             BoardNotFoundError: If the board does not exist.
 
         """
         try:
-            self._delete(f"boards/{board_id}")
+            self._put(f"boards/{board_id}", closed="true")
         except requests.HTTPError as exc:
             if exc.response is not None and exc.response.status_code in (400, 404):
                 msg = f"Board {board_id!r} not found"

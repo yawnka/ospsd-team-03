@@ -160,6 +160,30 @@ jobs:
       - store_artifacts:
           path: test-results/integration
 
+  # Job 6b: E2E Tests - dedicated tier for tests/e2e/
+  e2e_test:
+    docker:
+      - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Create Test Results Directory"
+          command: mkdir -p test-results/e2e
+      - run:
+          name: "Execute E2E Test Suite"
+          command: |
+            source .venv/bin/activate
+            pytest tests/e2e/ \
+                   --junitxml=test-results/e2e/junit.xml -v \
+                   --no-cov
+      - store_test_results:
+          path: test-results/e2e
+      - store_artifacts:
+          path: test-results/e2e
+
   # Job 6: Coverage Report - generates browsable HTML coverage report
   coverage_report:
     docker:
@@ -334,10 +358,14 @@ workflows:
       - integration_test:
           requires:
             - unit_test
+      - e2e_test:
+          requires:
+            - unit_test
       - coverage_report:
           requires:
             - unit_test
             - integration_test
+            - e2e_test
 
   # Deploy workflow: Build image → Terraform → Health check
   deploy_to_cloud_run:
@@ -376,11 +404,21 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+      - e2e_test:
+          requires:
+            - unit_test
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+                - fix/restore-docker-layer-caching
       - build_and_push_image:
           requires:
             - lint
             - type_check
             - unit_test
+            - e2e_test
           filters:
             branches:
               only:
