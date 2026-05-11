@@ -526,3 +526,68 @@ def test_ai_chat_calls_on_tool_executed_for_create_issue() -> None:
     assert len(calls) == 1
     assert calls[0][0] == "create_issue"
     assert calls[0][2] == "Created issue 'Discord callback test' on board board-1."
+
+
+def test_ai_chat_chains_get_boards_then_create_issue() -> None:
+    """AI can chain get_boards → create_issue across two tool-call rounds.
+
+    This is the exact failure mode that was observed in production: the model
+    calls get_boards first (to resolve a board name to an ID), then create_issue
+    in the next round. The agentic loop must pass tools on every round so the
+    second tool call is possible.
+    """
+    fake_issue_tracker_client = FakeIssueTrackerClient()
+    fake_ai_client = FakeAIClient(
+        [
+            # Round 1: model calls get_boards to look up the board
+            FakeResponse(
+                FakeMessage(
+                    content=None,
+                    tool_calls=[
+                        FakeToolCall(
+                            tool_id="tool-1",
+                            name="get_boards",
+                            arguments="{}",
+                        )
+                    ],
+                )
+            ),
+            # Round 2: model now calls create_issue with the resolved board id
+            FakeResponse(
+                FakeMessage(
+                    content=None,
+                    tool_calls=[
+                        FakeToolCall(
+                            tool_id="tool-2",
+                            name="create_issue",
+                            arguments=(
+                                '{"title":"live demo issue",'
+                                '"board_id":"board-1"}'
+                            ),
+                        )
+                    ],
+                )
+            ),
+            # Round 3: final text — no more tool calls
+            FakeResponse(
+                FakeMessage(
+                    content=(
+                        "Created issue 'live demo issue' on board Platform."
+                    ),
+                    tool_calls=[],
+                )
+            ),
+        ]
+    )
+
+    result = run_ai_chat(
+        payload=AIChatIn(
+            message="create issue called 'live demo issue' in board Platform"
+        ),
+        issue_tracker_client=fake_issue_tracker_client,
+        ai_client=fake_ai_client,
+    )
+
+    assert result.reply == "Created issue 'live demo issue' on board Platform."
+    tool_names = [a.tool for a in result.actions]
+    assert tool_names == ["get_boards", "create_issue"]
