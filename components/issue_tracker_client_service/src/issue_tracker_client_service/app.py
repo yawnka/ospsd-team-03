@@ -37,6 +37,7 @@ from issue_tracker_client_impl.oauth import build_authorization_url
 from issue_tracker_client_service.ai_router import run_ai_chat
 from issue_tracker_client_service.ai_schemas import AIChatIn, AIChatOut
 from issue_tracker_client_service.auth import consume_state, create_state
+from issue_tracker_client_service.chat_provider import register_chat_client
 from issue_tracker_client_service.schemas import (
     AuthStatusOut,
     BoardOut,
@@ -63,11 +64,6 @@ def _register_ai_client() -> None:
     import ai_client_impl  # noqa: F401, PLC0415
 logger = logging.getLogger(__name__)
 
-def _register_chat_client() -> None:
-    """Ensure chat client implementation is registered."""
-    import discord_client_impl  # noqa: F401,  PLC0415
-
-
 def _require_env(var_name: str) -> str:
     """Return a required environment variable or raise a startup error."""
     value = os.getenv(var_name)
@@ -90,7 +86,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Validate service configuration before accepting requests."""
     _validate_required_env()
     _register_ai_client()
-    _register_chat_client()
+    register_chat_client()
     yield
 
 

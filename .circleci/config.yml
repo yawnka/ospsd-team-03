@@ -75,6 +75,8 @@ jobs:
   unit_test:
     docker:
       - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
     steps:
       - attach_workspace:
           at: .
@@ -127,6 +129,8 @@ jobs:
   integration_test:
     docker:
       - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
     steps:
       - attach_workspace:
           at: .
