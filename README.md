@@ -27,10 +27,39 @@ This project is built on the principle of "programming integrated over time." Th
 
 ## Core Components
 
-The project is a `uv` workspace containing two primary packages:
+The project is a `uv` workspace with six components:
 
-1.  **`issue_tracker_client_api`**: Defines the abstract `IssueTrackerClient` base class (ABC). This is the contract for what actions an issue tracker client can perform (e.g., `list_issues`, `get_issue`, etc.).
-2.  **`issue_tracker_client_impl`**: Provides the `DefaultIssueTrackerClient` class, a concrete implementation that uses the Trello API to perform the actions defined in the `Client` abstraction 
+1.  **`issue_tracker_client_api`** — Abstract `IssueTrackerClient` ABC (the shared vertical contract).
+2.  **`issue_tracker_client_impl`** — Concrete Trello implementation registered via the DI factory.
+3.  **`issue_tracker_client_service`** — FastAPI service deploying the impl over HTTP on GCP Cloud Run.
+4.  **`issue_tracker_client_service_client`** — Auto-generated typed HTTP client from the OpenAPI spec.
+5.  **`issue_tracker_client_adapter`** — Adapter implementing the ABC by delegating to the service client.
+6.  **`ai_client_api`** / **`ai_client_impl`** — Abstract AI interface + OpenAI implementation (HW3).
+
+## HW3: AI Integration & Cross-Vertical
+
+### AI Integration
+
+The service exposes `POST /ai/chat`. The AI (OpenAI `gpt-4o-mini` by default, swappable via `OPENAI_MODEL`) can call ten typed domain tools — `get_boards`, `get_issues`, `create_issue`, `update_issue`, and more — against the live issue tracker. The AI client follows the same `ai_client_api` → `ai_client_impl` factory pattern as the issue tracker client.
+
+### Cross-Vertical Integration (Discord Chat)
+
+When an issue is created or the AI executes a tool, the service notifies a Discord channel via the shared Chat vertical API. The provider is injected through `CHAT_CLIENT_IMPL_MODULE` (default: `discord_client_impl`). Swapping to another chat provider (Slack, Telegram) requires only changing that environment variable — no code changes.
+
+### Deployment URL
+
+The service is publicly reachable at:
+
+> **https://issue-tracker-service-[SEE CIRCLECI TERRAFORM OUTPUT].a.run.app**
+
+*Fill in the URL from `terraform output service_url` or the CircleCI `terraform_apply` job.*
+
+Health check: `GET /health` → `{"status": "ok"}`
+
+### Telemetry Dashboard
+
+Grafana Cloud dashboard (latency + success/failure rates for both the Cloud Run service and Discord bot):
+[https://ospsd.grafana.net/public-dashboards/dc991557efdc4c608809a28ca4430b8c](https://ospsd.grafana.net/public-dashboards/dc991557efdc4c608809a28ca4430b8c)
 
 
 ## Project Structure

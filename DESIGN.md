@@ -361,3 +361,118 @@ The dashboard (`infrastructure/grafana/dashboard.json`) has seven panels across 
 2. **terraform_plan** — runs `terraform plan` with the new image tag to preview changes
 3. **terraform_apply** — applies the plan and persists the service URL to workspace
 4. **verify_health** — polls `<service_url>/health` with retries until HTTP 200
+
+---
+
+## AI Integration (HW3)
+
+### Overview
+
+HW3 adds `ai_client_api` (abstract interface) and `ai_client_impl` (OpenAI implementation) following the same interface/implementation pattern from HW1. The AI is integrated into the FastAPI service at `POST /ai/chat`, where it can inspect and act on the issue tracker through typed tool calls.
+
+### Interface: `ai_client_api`
+
+`AIClient` is an abstract base class in `ai_client_api/client.py` (not `__init__.py`). It is framework-free — it imports only `abc` and `typing`. Two abstract methods:
+
+- `send_message(prompt, context)` — simple text prompt / response
+- `create_chat_completion(messages, tools, tool_choice)` — full chat API with optional tool definitions
+
+The `register()` / `get_client()` factory pattern from HW1 is preserved in `ai_client_api/__init__.py`.
+
+### Implementation: `ai_client_impl`
+
+`OpenAIAIClient` implements `AIClient` using the OpenAI Python SDK (`gpt-4o-mini` by default). Provider credentials (`OPENAI_API_KEY`, `OPENAI_MODEL`) are read from environment variables at factory invocation time — never at import time, never hardcoded. Importing `ai_client_impl` registers the factory.
+
+### Tool Calling
+
+Ten domain tools are declared in `ai_tools.py` as typed JSON schemas:
+
+| Tool | Domain Action |
+|------|--------------|
+| `get_boards` | List all boards |
+| `get_board` | Fetch a board by ID |
+| `get_issues` | List issues for a board |
+| `get_issue` | Fetch an issue by ID |
+| `create_issue` | Create an issue on a board |
+| `update_issue` | Update issue fields (title, desc, status, members, …) |
+| `create_board` | Create a new board |
+| `update_board` | Rename a board |
+| `delete_issue` | Delete an issue |
+| `delete_board` | Delete a board |
+
+`execute_tool()` dispatches the model's tool calls to the real `IssueTrackerClient` methods. Status strings are validated against the `Status` enum before use.
+
+### AI Orchestration (`ai_router.py`)
+
+`run_ai_chat()` drives a two-turn conversation:
+
+1. Sends the user message with all tool definitions (`tool_choice="auto"`)
+2. If the model emits tool calls, executes each via `execute_tool()` and collects results
+3. Sends tool results back and requests a final natural-language reply
+4. Returns `AIChatOut(reply, actions)` — never raw tool outputs
+
+The `on_tool_executed` callback hook decouples AI tool execution from cross-vertical notification — `ai_router` has no direct knowledge of the chat vertical.
+
+---
+
+## Shared Vertical Contract (Issue Tracker Vertical)
+
+Teams 1 (Jira), 3 (Trello), and 7 (Trello) agreed on a shared `api` package published at [`ospsd_issue_tracker`](https://github.com/tatyanacthomas/ospsd_issue_tracker). This defines provider-agnostic domain types and a `Client` ABC that all three teams implement.
+
+### Shared Domain Types
+
+| Type | Key Fields |
+|------|-----------|
+| `Board` | `id`, `board_name` |
+| `Issue` | `id`, `title`, `desc`, `members`, `due_date`, `status`, `board_id` |
+| `Status` | Enum: `TO_DO`, `IN_PROGRESS`, `COMPLETED` |
+
+### Shared Client Methods
+
+```python
+get_boards() -> list[Board]
+get_board(board_id: str) -> Board
+get_issues(board_id: str) -> list[Issue]
+get_issue(issue_id: str) -> Issue
+create_issue(title, board_id, desc, members, due_date, status) -> Issue
+update_issue(issue_id, title, desc, members, due_date, status, board_id) -> Issue
+delete_issue(issue_id: str) -> bool
+create_board(name: str) -> Board
+update_board(board_id: str, name: str) -> Board
+delete_board(board_id: str) -> bool
+```
+
+### How This Team Conforms
+
+`DefaultIssueTrackerClient` (our Trello implementation from HW1) is cast to the shared `Client` type in `app.py`. The cast is valid because both ABCs define the same method signatures. The `_board_to_out()` and `_issue_to_out()` helpers normalize between the local domain models and the shared types.
+
+---
+
+## Cross-Vertical Integration (HW3)
+
+### Choice: Chat Vertical (Discord — Team 8)
+
+The issue tracker notifies the Chat vertical on real-time events: issue creation, AI tool execution, and AI response generation. The chosen provider is Discord (Team 8), but the integration is provider-agnostic through the shared `chat_client_api` contract from [`Shared-API`](https://github.com/HarshithKoriRaj/Shared-API).
+
+### Provider Injection
+
+`chat_provider.py` reads `CHAT_CLIENT_IMPL_MODULE` from the environment (default: `discord_client_impl`) and imports the module at lifespan startup. Importing registers the chat client factory with `chat_client_api` — the same DI pattern from HW1:
+
+```python
+# In app.py — no Discord-specific import anywhere in the service
+get_chat_client().send_message(channel_id=channel_id, text=text)
+```
+
+Swapping providers (e.g., Slack, Telegram) requires only changing `CHAT_CLIENT_IMPL_MODULE`. The Terraform `var.chat_client_impl_module` injects this into Cloud Run, enabling provider swaps as a Terraform variable change with no code changes.
+
+### Notification Triggers
+
+| Event | Notification Sent |
+|-------|-------------------|
+| Issue created via REST | `"New issue created:\n'{title}' (board: {board_id}, status: {status})"` |
+| AI tool executed | `"AI executed \`{tool}\`:\n{detail}"` |
+| AI response generated | `"AI response:\n{reply}"` |
+
+### Resilience
+
+`_notify_chat_text()` catches all exceptions — a Discord failure never breaks issue creation or AI responses. The `DISCORD_NOTIFY_CHANNEL_ID` env var being absent silently skips all notifications.
