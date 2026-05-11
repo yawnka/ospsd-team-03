@@ -114,7 +114,14 @@ jobs:
           name: "Run Static Analysis (mypy)"
           command: |
             source .venv/bin/activate
-            mypy -p issue_tracker_client_api -p issue_tracker_client_impl --explicit-package-bases
+            mypy \
+            -p issue_tracker_client_api \
+            -p issue_tracker_client_impl \
+            -p issue_tracker_client_adapter \
+            -p issue_tracker_client_service \
+            -p ai_client_api \
+            -p ai_client_impl \
+            --explicit-package-bases
 
   # Job 5: Integration Tests with Real Credentials
   integration_test:

@@ -461,13 +461,14 @@ def create_issue(
     board_id: str,
     payload: CreateIssueIn,
     client: ClientDependency,
+
 ) -> IssueOut:
     """Create an issue using the shared API contract."""
     try:
         issue = client.create_issue(
             title=payload.title,
             board_id=board_id,
-            desc=payload.desc,
+            desc=payload.description,
             members=payload.members,
             due_date=payload.due_date,
             status=payload.status,
@@ -480,7 +481,8 @@ def create_issue(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create issue in board '{board_id}'",
+            detail=f"Unexpected error while creating issue in board \
+                '{board_id}': {exc}",
         ) from exc
     else:
         out = _issue_to_out(issue)
@@ -508,14 +510,13 @@ def update_issue(
             board_id=payload.board_id,
         )
     except IssueNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Issue {issue_id} not found",
-        ) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update issue '{issue_id}'",
+            detail=f"Unexpected error while updating issue '{issue_id}': {exc}",
         ) from exc
     else:
         return _issue_to_out(issue)
