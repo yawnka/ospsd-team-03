@@ -377,6 +377,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - lint:
           requires:
             - build
@@ -386,6 +387,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - type_check:
           requires:
             - build
@@ -395,6 +397,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - unit_test:
           requires:
             - build
@@ -404,6 +407,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - e2e_test:
           requires:
             - unit_test
@@ -413,6 +417,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - build_and_push_image:
           requires:
             - lint
@@ -425,6 +430,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - build_and_push_bot_image:
           requires:
             - lint
@@ -436,6 +442,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - terraform_plan:
           requires:
             - build_and_push_image
@@ -446,6 +453,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - terraform_apply:
           requires:
             - terraform_plan
@@ -455,6 +463,7 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation
       - verify_health:
           requires:
             - terraform_apply
@@ -464,3 +473,4 @@ workflows:
                 - main
                 - hw-3
                 - fix/restore-docker-layer-caching
+                - fix/systemd-secret-rotation

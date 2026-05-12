@@ -351,21 +351,29 @@ resource "google_compute_instance" "discord_bot" {
     #!/bin/bash
     set -euo pipefail
 
+    # --- Write run.sh (executed by systemd on every start/restart) ---
+    mkdir -p /var/lib/discord-bot
+    cat > /var/lib/discord-bot/run.sh << 'RUNEOF'
+    #!/bin/bash
+    set -euo pipefail
+
     PROJECT="${var.project_id}"
     REGION="${var.region}"
     IMAGE="$${REGION}-docker.pkg.dev/$${PROJECT}/${google_artifact_registry_repository.docker.repository_id}/discord-bot:${var.bot_image_tag}"
 
-    # --- Authenticate Docker to Artifact Registry via metadata server ---
     # COS root filesystem is read-only; redirect Docker config to /tmp
     export HOME=/tmp
 
+    # Fetch a fresh access token on every invocation
     ACCESS_TOKEN=$(curl -sf -H "Metadata-Flavor: Google" \
       "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
       | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 
+    # Re-authenticate and pull on every restart so `systemctl restart` picks up new images
     echo "$${ACCESS_TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://$${REGION}-docker.pkg.dev"
+    docker pull "$${IMAGE}"
 
-    # --- Fetch secrets from Secret Manager REST API ---
+    # Fetch latest secrets from Secret Manager on every invocation
     fetch_secret() {
       curl -sf \
         -H "Authorization: Bearer $${ACCESS_TOKEN}" \
@@ -380,10 +388,9 @@ resource "google_compute_instance" "discord_bot" {
     OPENAI_API_KEY=$(fetch_secret openai-api-key)
     OTEL_HEADERS=$(fetch_secret otel-otlp-headers)
 
-    # --- Run bot container (idempotent: safe on reboot) ---
     docker rm -f discord-bot 2>/dev/null || true
-    docker pull "$${IMAGE}"
-    docker run -d --restart=always --name=discord-bot \
+    # Run in foreground (no -d) so systemd tracks the process and Restart=always works
+    docker run --rm --name=discord-bot \
       -e DISCORD_BOT_TOKEN="$${DISCORD_BOT_TOKEN}" \
       -e DISCORD_GUILD_ID="${var.discord_guild_id}" \
       -e TRELLO_API_KEY="$${TRELLO_API_KEY}" \
@@ -393,6 +400,28 @@ resource "google_compute_instance" "discord_bot" {
       -e OTEL_EXPORTER_OTLP_HEADERS="$${OTEL_HEADERS}" \
       -e OTEL_SERVICE_NAME="discord-bot" \
       "$${IMAGE}"
+    RUNEOF
+    chmod +x /var/lib/discord-bot/run.sh
+
+    # --- Register systemd unit ---
+    cat > /etc/systemd/system/discord-bot.service << 'UNITEOF'
+    [Unit]
+    Description=Discord Bot
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    Type=simple
+    ExecStart=/var/lib/discord-bot/run.sh
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    UNITEOF
+
+    systemctl daemon-reload
+    systemctl enable --now discord-bot
   SCRIPT
 
   depends_on = [
