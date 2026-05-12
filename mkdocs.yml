@@ -1,4 +1,4 @@
-site_name: Issue Tracker Client Project
+site_name: OSPSD Team 03 Issue Tracker
 repo_name: ospsd-team-03
 repo_url: https://github.com/yawnka/ospsd-team-03
 
@@ -45,6 +45,7 @@ markdown_extensions:
   - pymdownx.superfences
 
 plugins:
+  - search
   - mkdocstrings:
       handlers:
         python:

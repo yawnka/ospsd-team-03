@@ -1,60 +1,51 @@
-# AI Client Implementation (OpenAI)
+# AI Client Implementation OpenAI
 
-## Overview
+`ai_client_impl` provides the OpenAI-backed implementation of the shared `ai_client_api` contract.
 
-`ai_client_impl` is the concrete OpenAI-backed implementation of `ai_client_api`. It uses `gpt-4o-mini` by default and registers itself automatically on import.
+This package registers an `AIClient` implementation that uses the OpenAI API. The service depends on the abstract AI client contract, while this package contains the provider-specific OpenAI wiring.
 
-Added in **HW3 (Second Submission)**.
+## Purpose
 
-## Required Environment Variable
+This component is responsible for:
+
+- implementing the shared `AIClient` interface,
+- loading OpenAI credentials from environment variables,
+- calling OpenAI chat-completion APIs,
+- supporting tool-calling workflows used by the service,
+- keeping OpenAI-specific SDK details out of consumer code,
+- registering itself with `ai_client_api` on import.
+
+## Required Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_API_KEY` | OpenAI API key used by the provider implementation |
 
 ## Usage
 
+Importing this package triggers dependency injection registration.
+
 ```python
-import ai_client_impl  # triggers DI registration
+import ai_client_impl
 from ai_client_api import get_client
 
 client = get_client()
-reply = client.send_message("List all open issues on board abc123.")
-print(reply)
+response = client.send_message("Summarize this ticket.")
+print(response)
 ```
 
-## Implementation Details
+## Tool Calling
 
-`OpenAIAIClient` wraps the OpenAI Python SDK. `send_message` sends the prompt as a `user` message and returns the model's text response. When called from the service layer (`ai_router.py`), tool schemas are injected and the implementation runs a full multi-turn tool-calling loop:
+The implementation supports the chat-completion flow used by the service's AI tool-calling pipeline. The service can provide tool definitions, receive tool calls from the model, validate the arguments, and execute real issue tracker actions.
 
-1. First completion — model may return tool calls instead of text.
-2. Each tool call is dispatched to `execute_tool()` in `ai_tools.py`, which calls the issue tracker client directly.
-3. Tool results are appended to the message history.
-4. Second completion — model produces the final natural-language response.
+Provider-specific OpenAI response objects should stay inside this implementation package. Other components should interact through the shared AI client interface.
 
-This multi-turn approach means the AI can chain actions (e.g., "list boards, then create an issue on the first one") in a single user request.
+## Testing
 
-## Tools Available
+Run this component's tests with:
 
-The service wires 10 domain tools to the AI:
+```bash
+uv run pytest components/ai_client_impl/tests/
+```
 
-| Tool | Action |
-|------|--------|
-| `get_boards` | List all boards |
-| `get_board` | Get a single board |
-| `create_board` | Create a board |
-| `update_board` | Rename a board |
-| `delete_board` | Delete a board |
-| `get_issues` | List issues on a board |
-| `get_issue` | Get a single issue |
-| `create_issue` | Create an issue |
-| `update_issue` | Update title/status/assignees |
-| `delete_issue` | Archive an issue |
-
-## Model Configuration
-
-The default model is `gpt-4o-mini`. It can be overridden by setting `OPENAI_MODEL` before the client is instantiated.
-
-## Auto-Registration
-
-`__init__.py` calls `ai_client_api.register(lambda: OpenAIAIClient())` at import time. Importing `ai_client_impl` is the only step required to make `get_client()` return an OpenAI-backed instance.
+The tests should mock the OpenAI SDK or HTTP boundary. Unit tests should not make real OpenAI network calls.
