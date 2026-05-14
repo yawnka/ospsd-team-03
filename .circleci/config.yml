@@ -376,6 +376,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - lint:
           requires:
             - build
@@ -384,6 +385,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - type_check:
           requires:
             - build
@@ -392,6 +394,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - unit_test:
           requires:
             - build
@@ -400,6 +403,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - e2e_test:
           requires:
             - unit_test
@@ -408,6 +412,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - build_and_push_image:
           requires:
             - lint
@@ -419,6 +424,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - build_and_push_bot_image:
           requires:
             - lint
@@ -429,6 +435,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - terraform_plan:
           requires:
             - build_and_push_image
@@ -438,6 +445,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - terraform_apply:
           requires:
             - terraform_plan
@@ -446,6 +454,7 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
       - verify_health:
           requires:
             - terraform_apply
@@ -454,3 +463,4 @@ workflows:
               only:
                 - main
                 - hw-3
+                - hw-3-squash
