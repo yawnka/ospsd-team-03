@@ -1,59 +1,75 @@
-# Issue Tracker Client Adapter (Service Client)
+# Issue Tracker Client Adapter
 
-## Overview
+`issue_tracker_client_adapter` implements the `IssueTrackerClient` interface by delegating calls to the remote FastAPI issue tracker service.
 
-`issue_tracker_client_adapter` implements the `IssueTrackerClient` interface by delegating calls to the remote FastAPI service through the auto-generated client.
-
-This is the **Adapter Pattern** in action: consumers use the same abstract interface regardless of whether the implementation runs locally or as a remote service.
+This component provides location transparency: consumer code can use the same issue tracker contract whether the implementation is local or remote.
 
 ## Purpose
 
-- Achieves **location transparency** between local and remote usage
-- Wraps the auto-generated HTTP client with the `IssueTrackerClient` ABC
-- Registers itself via dependency injection on import
+This component is responsible for:
 
-## Architecture
+- implementing the shared `IssueTrackerClient` interface,
+- calling the generated service client,
+- hiding HTTP details from consumers,
+- preserving the same dependency injection pattern as the local implementation,
+- allowing consumers to switch from an in-process provider to the deployed service.
 
-```text
-Consumer Code
-     |
-     v
-get_client()  --->  ServiceClientAdapter (this package)
-                         |
-                         v
-              issue_tracker_client_service_client (HTTP calls)
-                         |
-                         v
-              issue_tracker_client_service (FastAPI)
-                         |
-                         v
-              issue_tracker_client_impl (Trello API)
-```
+## Configuration
 
-## Dependency Injection
-
-Importing the package auto-registers the adapter:
-
-```python
-import issue_tracker_client_adapter  # triggers registration
-from issue_tracker_client_api.client import get_client
-
-client = get_client()  # returns ServiceClientAdapter
-issues = client.list_issues("my_board")
-```
-
-Requires `ISSUE_TRACKER_SERVICE_URL` to be set:
+Set `ISSUE_TRACKER_SERVICE_URL` to the base URL of the running issue tracker service.
 
 ```bash
 export ISSUE_TRACKER_SERVICE_URL="http://localhost:8000"
 ```
 
-## Sanity Check
-
-If `main.py` works by injecting the local implementation (`issue_tracker_client_impl`), it should also work by injecting this adapter (`issue_tracker_client_adapter`) with the service running remotely. The consumer code does not change.
-
-## Testing
+For the deployed service, use:
 
 ```bash
-uv run pytest components/issue_tracker_client_adapter/tests/ -q
+export ISSUE_TRACKER_SERVICE_URL="https://issue-tracker-service-793028870171.us-central1.run.app"
 ```
+
+## Dependency Injection Usage
+
+Importing the adapter package registers `ServiceClientAdapter` as the active issue tracker client.
+
+```python
+import issue_tracker_client_adapter
+from issue_tracker_client_api import get_client
+
+client = get_client()
+issues = client.list_issues("my-board")
+print(issues)
+```
+
+
+
+## Direct Usage
+
+You can also construct the adapter directly when explicit configuration is preferred.
+
+```python
+from issue_tracker_client_adapter import ServiceClientAdapter
+
+adapter = ServiceClientAdapter(base_url="http://localhost:8000")
+issues = adapter.list_issues("my-board")
+print(issues)
+```
+
+## Dependencies
+
+This component depends on:
+
+- `issue_tracker_client_api` for the shared contract,
+- `issue_tracker_client_service_client` for generated HTTP calls,
+- the FastAPI service being reachable at the configured base URL.
+
+
+## Testing 
+
+Run this component's tests with:
+
+```bash
+uv run pytest components/issue_tracker_client_adapter/tests/
+```
+
+The tests should mock the generated HTTP client boundary. Unit tests should not require the deployed service to be running.

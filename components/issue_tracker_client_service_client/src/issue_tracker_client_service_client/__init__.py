@@ -1,5 +1,5 @@
+"""A client library for accessing Issue Tracker Client Service"""
 
-""" A client library for accessing Issue Tracker Client Service """
 from .client import AuthenticatedClient, Client
 
 __all__ = (

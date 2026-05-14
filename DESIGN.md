@@ -1,4 +1,4 @@
-# HW2 Design Document
+# Design Document
 
 ## Overview
 
@@ -6,11 +6,13 @@ HW1 established two components: `issue_tracker_client_api` (an abstract interfac
 
 HW2 transforms that library into a publicly accessible microservice. Three new components were added on top of the HW1 foundation without modifying the original interface or implementation:
 
-- **`issue_tracker_client_service`** — exposes the implementation over HTTP (FastAPI, deployed on Render)
+- **`issue_tracker_client_service`** — exposes the implementation over HTTP (FastAPI, deployed on GCP Cloud Run)
 - **`issue_tracker_client_service_client`** — a type-safe Python client auto-generated from the service's OpenAPI spec
 - **`issue_tracker_client_adapter`** — implements the original `IssueTrackerClient` ABC by delegating to the generated client
 
 The central design goal is **location transparency**: consumer code that works with the local implementation also works identically with the remote adapter, with no changes required.
+
+HW3 adds infrastructure as code (Terraform), observability (OpenTelemetry + Grafana Cloud), and a fully automated CI/CD pipeline that builds, deploys, and verifies the service on every push.
 
 ---
 
@@ -25,7 +27,7 @@ Consumer → get_client() → ServiceClientAdapter
                                ↓ HTTP (httpx)
                    issue_tracker_client_service_client
                                ↓ HTTP
-                   issue_tracker_client_service (FastAPI, Render)
+                   issue_tracker_client_service (FastAPI, GCP Cloud Run)
                                ↓
                    DefaultIssueTrackerClient → Trello REST API
 ```
@@ -52,7 +54,7 @@ Only the import changes. The registered DI factory switches transparently.
 
 ### Responsibility
 
-Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the only component in the system that runs as a separate process (Docker container on Render).
+Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the only component in the system that runs as a separate process (Docker container on GCP Cloud Run).
 
 ### Module Breakdown
 
@@ -62,6 +64,7 @@ Deploy `DefaultIssueTrackerClient` as a standalone HTTP service. This is the onl
 | `schemas.py` | Pydantic request/response models for the HTTP wire format (separate from domain models) |
 | `session.py` | In-memory session store: `dict[str, UserSession]` keyed by `session_id` |
 | `auth.py` | One-time CSRF state nonces: `create_state()` / `consume_state()` backed by `set[str]` |
+| `telemetry.py` | OpenTelemetry instrumentation: tracing, metrics, and FastAPI auto-instrumentation (no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset) |
 
 ### Authorization Flow
 
@@ -112,17 +115,22 @@ A fallback using `TRELLO_API_TOKEN` and `TRELLO_API_KEY` exists for CI and non-b
 
 ### Deployment
 
-The service runs as a Docker container on [Render](https://render.com). The `Dockerfile` uses a two-stage build: a builder stage installs dependencies with `uv sync --no-dev --frozen`, and a slim runtime stage copies only the installed packages. This keeps the production image lean.
+The service runs as a Docker container on GCP Cloud Run. The `Dockerfile` uses a two-stage build: a builder stage installs dependencies with `uv sync --no-dev --frozen`, and a slim runtime stage copies only the installed packages. This keeps the production image lean.
 
-Every push to the `hw-2` branch triggers a CircleCI pipeline that runs lint, type checks, and tests, then calls the Render deploy hook to redeploy the service. The live URL is `https://ospsd-team-03.onrender.com`.
+All infrastructure is managed by Terraform (see [Infrastructure as Code](#infrastructure-as-code-terraform) below). Every push to the `hw-3` branch triggers a CircleCI pipeline that builds the Docker image, pushes it to Artifact Registry, runs `terraform plan` and `terraform apply`, then verifies the deployment via a health check.
 
-Required environment variables (set via Render's secrets manager — never committed):
+Required environment variables (sensitive values stored in GCP Secret Manager — never committed):
 
-| Variable | Purpose |
-|----------|---------|
-| `TRELLO_API_KEY` | Trello application key |
-| `TRELLO_API_TOKEN` | Fallback Trello token (used when no session exists) |
-| `REDIRECT_URI` | OAuth callback URL (differs between local and production) |
+| Variable | Purpose | Source |
+|----------|---------|--------|
+| `TRELLO_API_KEY` | Trello application key | Secret Manager |
+| `TRELLO_API_TOKEN` | Fallback Trello token (used when no session exists) | Secret Manager |
+| `REDIRECT_URI` | OAuth callback URL (differs between local and production) | Terraform variable |
+| `ENV` | Set to `production` for Secure cookies | Terraform (hardcoded) |
+| `ALLOWED_ORIGIN` | CORS origin (optional) | Terraform variable |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Grafana Cloud OTLP endpoint (optional; empty = telemetry disabled) | Terraform variable |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Grafana Cloud authentication header | Secret Manager |
+| `OTEL_SERVICE_NAME` | OpenTelemetry service name | Terraform variable |
 
 ---
 
@@ -200,7 +208,7 @@ The `base_url` is read from the environment at instantiation time (not at import
 |-----------|-----------|
 | `issue_tracker_client_api` | (none — pure stdlib) |
 | `issue_tracker_client_impl` | `issue_tracker_client_api`, `requests` |
-| `issue_tracker_client_service` | `issue_tracker_client_impl`, `fastapi`, `uvicorn` |
+| `issue_tracker_client_service` | `issue_tracker_client_impl`, `fastapi`, `uvicorn`, `opentelemetry-*` |
 | `issue_tracker_client_service_client` | `httpx`, `attrs`, `python-dateutil` (generated) |
 | `issue_tracker_client_adapter` | `issue_tracker_client_api`, `issue_tracker_client_service_client` |
 
@@ -241,3 +249,230 @@ See [Testing Strategy](testing.md) for the full guide. HW2-specific additions:
 - **Integration tests** (`tests/integration/test_client_integration.py`): Verify that importing `issue_tracker_client_impl` correctly wires the DI registry and that `get_client()` returns a `DefaultIssueTrackerClient`.
 - **E2E tests** (`tests/e2e/test_main_application.py`): Exercise user-visible behavior through the client interface. Service and adapter behavior is additionally covered through HTTP-path integration tests.
 - **OAuth flow**: Requires a browser interaction and cannot be fully automated in CI. Tests focus on the post-token logic (session creation, client instantiation). The auth flow is validated manually.
+- **Telemetry unit tests** (`components/issue_tracker_client_service/tests/test_telemetry.py`): Verify that `setup_telemetry` is a no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, configures providers correctly when set, parses OTLP headers, and handles edge cases (trailing slashes, URL-encoded values).
+
+---
+
+## Infrastructure as Code (Terraform)
+
+All cloud resources are defined in `infrastructure/terraform/` and managed exclusively through Terraform. No manual `gcloud` commands are used for resource provisioning.
+
+### Resources Managed
+
+| Resource | Terraform Resource Type | Purpose |
+|----------|------------------------|---------|
+| Artifact Registry | `google_artifact_registry_repository` | Docker image storage |
+| Secret Manager secrets | `google_secret_manager_secret` (x3) | Trello API key, Trello API token, OTLP headers |
+| Service account | `google_service_account` | Cloud Run runtime identity |
+| Secret IAM bindings | `google_secret_manager_secret_iam_member` (x3) | Grant SA access to secrets |
+| Cloud Run service | `google_cloud_run_v2_service` | Application container |
+| Public access | `google_cloud_run_v2_service_iam_member` | Allow unauthenticated invocations |
+
+### State Management
+
+Terraform state is stored in a GCS bucket (`ospsd-team-03-tfstate`), enabling shared state across local development and CI without committing sensitive state files.
+
+### Bootstrap Gating
+
+The `enable_service` variable (default `false`) allows a two-phase bootstrap:
+
+1. `terraform apply` with `enable_service=false` — creates secrets, service account, and IAM bindings
+2. Populate secret versions via `gcloud secrets versions add`
+3. `terraform apply` with `enable_service=true` — creates the Cloud Run service (secrets are now available)
+
+CI always passes `enable_service=true` because secrets are already populated.
+
+### Security
+
+Sensitive values (Trello credentials, OTLP headers) are stored in GCP Secret Manager and injected into Cloud Run containers via `secret_key_ref`. These values never appear in Terraform state or in plain-text environment variable definitions.
+
+---
+
+## Observability & Telemetry
+
+### Architecture
+
+```text
+FastAPI (Cloud Run)
+  → OpenTelemetry SDK (auto-instrumentation)
+    → OTLP HTTP exporter
+      → Grafana Cloud (metrics + traces)
+
+Discord Bot (GCE e2-micro)
+  → OpenTelemetry SDK (custom metrics)
+    → OTLP HTTP exporter
+      → Grafana Cloud (metrics)
+
+Both → Grafana Dashboard (7 panels)
+```
+
+### Instrumentation
+
+**Cloud Run service** — `telemetry.py` configures OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set:
+
+- **Tracing**: `TracerProvider` with `BatchSpanProcessor` → OTLP HTTP exporter (`/v1/traces`)
+- **Metrics**: `MeterProvider` with `PeriodicExportingMetricReader` (10s interval) → OTLP HTTP exporter (`/v1/metrics`)
+- **FastAPI auto-instrumentation**: `FastAPIInstrumentor` emits `http.server.duration` histograms and per-status-code request counters
+
+The 10-second export interval (vs. the default 60s) ensures metrics flush before Cloud Run scales the instance to zero.
+
+**Discord Bot** — `bot_telemetry.py` emits three custom metrics via the same OTLP pipeline:
+
+- `discord.bot.command.duration` (histogram) — AI command latency in seconds
+- `discord.bot.command.success` (counter) — successful AI commands
+- `discord.bot.command.failure` (counter) — failed AI commands
+
+When the endpoint is unset, both `setup_telemetry` and `setup_bot_telemetry` are no-ops — local development and tests run without any observability infrastructure.
+
+### Why Two Compute Resources
+
+Cloud Run is request-driven and scales to zero between requests — ideal for the HTTP API. The Discord bot, however, must maintain a persistent WebSocket connection to the Discord Gateway, which is incompatible with Cloud Run's lifecycle model. A GCE `e2-micro` instance (Always Free tier) runs the bot as a long-lived process. Both resources are managed by Terraform.
+
+### Grafana Dashboard
+
+The dashboard (`infrastructure/grafana/dashboard.json`) has seven panels across two sections:
+
+**Cloud Run service** (`service_name="issue-tracker-service"`):
+
+1. **Request Latency (p50 / p95 / p99)** — `histogram_quantile` over `http_server_request_duration_seconds_bucket`
+2. **Success Rate (2xx)** — ratio of 2xx responses to total requests
+3. **Client Error Rate (4xx)** — ratio of 4xx responses to total requests
+4. **Server Error Rate (5xx)** — ratio of 5xx responses to total requests
+
+**Discord Bot** (`service_name="discord-bot"`):
+
+5. **Command Latency (p50 / p95 / p99)** — `histogram_quantile` over `discord_bot_command_duration_seconds_bucket`
+6. **Success Rate** — rate of `discord_bot_command_success_total`
+7. **Failure Rate** — rate of `discord_bot_command_failure_total`
+
+---
+
+## CI/CD Pipeline
+
+### Workflows
+
+**`build_and_test`** (all branches): build → lint → type_check → unit_test → integration_test → coverage_report
+
+**`deploy_to_cloud_run`** (`hw-3` branch): build → lint + type_check + unit_test → build_and_push_image → terraform_plan → terraform_apply → verify_health
+
+### Deploy Pipeline Steps
+
+1. **build_and_push_image** — authenticates to GCP, builds Docker image, pushes to Artifact Registry with `$CIRCLE_SHA1` tag
+2. **terraform_plan** — runs `terraform plan` with the new image tag to preview changes
+3. **terraform_apply** — applies the plan and persists the service URL to workspace
+4. **verify_health** — polls `<service_url>/health` with retries until HTTP 200
+
+---
+
+## AI Integration (HW3)
+
+### Overview
+
+HW3 adds `ai_client_api` (abstract interface) and `ai_client_impl` (OpenAI implementation) following the same interface/implementation pattern from HW1. The AI is integrated into the FastAPI service at `POST /ai/chat`, where it can inspect and act on the issue tracker through typed tool calls.
+
+### Interface: `ai_client_api`
+
+`AIClient` is an abstract base class in `ai_client_api/client.py` (not `__init__.py`). It is framework-free — it imports only `abc` and `typing`. Two abstract methods:
+
+- `send_message(prompt, context)` — simple text prompt / response
+- `create_chat_completion(messages, tools, tool_choice)` — full chat API with optional tool definitions
+
+The `register()` / `get_client()` factory pattern from HW1 is preserved in `ai_client_api/__init__.py`.
+
+### Implementation: `ai_client_impl`
+
+`OpenAIAIClient` implements `AIClient` using the OpenAI Python SDK (`gpt-4o-mini` by default). Provider credentials (`OPENAI_API_KEY`, `OPENAI_MODEL`) are read from environment variables at factory invocation time — never at import time, never hardcoded. Importing `ai_client_impl` registers the factory.
+
+### Tool Calling
+
+Ten domain tools are declared in `ai_tools.py` as typed JSON schemas:
+
+| Tool | Domain Action |
+|------|--------------|
+| `get_boards` | List all boards |
+| `get_board` | Fetch a board by ID |
+| `get_issues` | List issues for a board |
+| `get_issue` | Fetch an issue by ID |
+| `create_issue` | Create an issue on a board |
+| `update_issue` | Update issue fields (title, desc, status, members, …) |
+| `create_board` | Create a new board |
+| `update_board` | Rename a board |
+| `delete_issue` | Delete an issue |
+| `delete_board` | Delete a board |
+
+`execute_tool()` dispatches the model's tool calls to the real `IssueTrackerClient` methods. Status strings are validated against the `Status` enum before use.
+
+### AI Orchestration (`ai_router.py`)
+
+`run_ai_chat()` drives a two-turn conversation:
+
+1. Sends the user message with all tool definitions (`tool_choice="auto"`)
+2. If the model emits tool calls, executes each via `execute_tool()` and collects results
+3. Sends tool results back and requests a final natural-language reply
+4. Returns `AIChatOut(reply, actions)` — never raw tool outputs
+
+The `on_tool_executed` callback hook decouples AI tool execution from cross-vertical notification — `ai_router` has no direct knowledge of the chat vertical.
+
+---
+
+## Shared Vertical Contract (Issue Tracker Vertical)
+
+Teams 1 (Jira), 3 (Trello), and 7 (Trello) agreed on a shared `api` package published at [`ospsd_issue_tracker`](https://github.com/tatyanacthomas/ospsd_issue_tracker). This defines provider-agnostic domain types and a `Client` ABC that all three teams implement.
+
+### Shared Domain Types
+
+| Type | Key Fields |
+|------|-----------|
+| `Board` | `id`, `board_name` |
+| `Issue` | `id`, `title`, `desc`, `members`, `due_date`, `status`, `board_id` |
+| `Status` | Enum: `TO_DO`, `IN_PROGRESS`, `COMPLETED` |
+
+### Shared Client Methods
+
+```python
+get_boards() -> list[Board]
+get_board(board_id: str) -> Board
+get_issues(board_id: str) -> list[Issue]
+get_issue(issue_id: str) -> Issue
+create_issue(title, board_id, desc, members, due_date, status) -> Issue
+update_issue(issue_id, title, desc, members, due_date, status, board_id) -> Issue
+delete_issue(issue_id: str) -> bool
+create_board(name: str) -> Board
+update_board(board_id: str, name: str) -> Board
+delete_board(board_id: str) -> bool
+```
+
+### How This Team Conforms
+
+`DefaultIssueTrackerClient` (our Trello implementation from HW1) is cast to the shared `Client` type in `app.py`. The cast is valid because both ABCs define the same method signatures. The `_board_to_out()` and `_issue_to_out()` helpers normalize between the local domain models and the shared types.
+
+---
+
+## Cross-Vertical Integration (HW3)
+
+### Choice: Chat Vertical (Discord — Team 8)
+
+The issue tracker notifies the Chat vertical on real-time events: issue creation, AI tool execution, and AI response generation. The chosen provider is Discord (Team 8), but the integration is provider-agnostic through the shared `chat_client_api` contract from [`Shared-API`](https://github.com/HarshithKoriRaj/Shared-API).
+
+### Provider Injection
+
+`chat_provider.py` reads `CHAT_CLIENT_IMPL_MODULE` from the environment (default: `discord_client_impl`) and imports the module at lifespan startup. Importing registers the chat client factory with `chat_client_api` — the same DI pattern from HW1:
+
+```python
+# In app.py — no Discord-specific import anywhere in the service
+get_chat_client().send_message(channel_id=channel_id, text=text)
+```
+
+Swapping providers (e.g., Slack, Telegram) requires only changing `CHAT_CLIENT_IMPL_MODULE`. The Terraform `var.chat_client_impl_module` injects this into Cloud Run, enabling provider swaps as a Terraform variable change with no code changes.
+
+### Notification Triggers
+
+| Event | Notification Sent |
+|-------|-------------------|
+| Issue created via REST | `"New issue created:\n'{title}' (board: {board_id}, status: {status})"` |
+| AI tool executed | `"AI executed \`{tool}\`:\n{detail}"` |
+| AI response generated | `"AI response:\n{reply}"` |
+
+### Resilience
+
+`_notify_chat_text()` catches all exceptions — a Discord failure never breaks issue creation or AI responses. The `DISCORD_NOTIFY_CHANNEL_ID` env var being absent silently skips all notifications.

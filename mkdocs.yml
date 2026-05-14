@@ -1,4 +1,4 @@
-site_name: Issue Tracker Client Project
+site_name: OSPSD Team 03 Issue Tracker
 repo_name: ospsd-team-03
 repo_url: https://github.com/yawnka/ospsd-team-03
 
@@ -20,17 +20,24 @@ theme:
     - content.code.copy
 
 nav:
-  - 'Overview': 'index.md'
-  - 'Design': 'design.md'
+  - Overview: index.md
+  - Architecture:
+      - Design & Decisions: design.md
+      - Component Guide: component.md
   - Components:
-      - Issue Tracker Client API: components/issue_tracker_client_api.md
-      - Issue Tracker Client Implementation: components/issue_tracker_client_impl.md
-      - Issue Tracker Client Service: components/issue_tracker_client_service.md
-      - Issue Tracker Service Client: components/issue_tracker_client_service_client.md
-      - Issue Tracker Client Adapter: components/issue_tracker_client_adapter.md
-  - CircleCI Setup: circleci-setup.md
-  - Component: component.md
-  - Testing: testing.md
+      - Issue Tracker API: components/issue_tracker_client_api.md
+      - Trello Implementation: components/issue_tracker_client_impl.md
+      - FastAPI Service: components/issue_tracker_client_service.md
+      - Service Client: components/issue_tracker_client_service_client.md
+      - Service Adapter: components/issue_tracker_client_adapter.md
+      - AI Client API: components/ai_client_api.md
+      - AI Client (OpenAI): components/ai_client_impl.md
+  - Infrastructure:
+      - Terraform & Cloud Run: infrastructure.md
+      - Observability: observability.md
+  - Development:
+      - Testing Strategy: testing.md
+      - CircleCI & Deployment: circleci-setup.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -38,14 +45,15 @@ markdown_extensions:
   - pymdownx.superfences
 
 plugins:
+  - search
   - mkdocstrings:
       handlers:
         python:
           paths:
             - components/issue_tracker_client_api/src
             - components/issue_tracker_client_impl/src
-            - components/issue_tracker_client_service/src
-            - components/issue_tracker_client_adapter/src
+            - components/ai_client_api/src
+            - components/ai_client_impl/src
           options:
             show_source: false
             docstring_section_style: spacy

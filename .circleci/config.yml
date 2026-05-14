@@ -25,7 +25,7 @@ jobs:
   # Job 1: Setup Environment and Install All Dependencies
   build:
     docker:
-      - image: cimg/python:3.12 # Match project requires-python >= 3.12
+      - image: cimg/python:3.13 # Match project requires-python >= 3.12
     steps:
       - checkout
       - run:
@@ -39,10 +39,10 @@ jobs:
           name: "Create Virtual Env & Install All Dependencies via UV Sync"
           command: |
             # Use system Python to ensure venv symlinks survive persist_to_workspace
-            uv venv --python $(which python3.12)
+            uv venv --python $(which python3.13)
             source .venv/bin/activate
-            # Install all workspace packages and dev dependencies using optional extras (PEP 621)
-            uv sync --all-packages --extra dev --verbose
+            # Install all workspace packages and dev dependency group (PEP 735)
+            uv sync --all-packages --group dev --verbose
       - run:
           name: "Verify Installation"
           command: |
@@ -61,7 +61,7 @@ jobs:
   # Job 2: Linting and Formatting Checks
   lint:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     steps:
       - attach_workspace:
           at: . # Attach the workspace persisted from 'build'
@@ -74,7 +74,9 @@ jobs:
   # Job 3: Unit Tests, Coverage, and Static Analysis
   unit_test:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
     steps:
       - attach_workspace:
           at: .
@@ -106,7 +108,7 @@ jobs:
   # Job 4: Static Analysis
   type_check:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     steps:
       - attach_workspace:
           at: .
@@ -114,12 +116,21 @@ jobs:
           name: "Run Static Analysis (mypy)"
           command: |
             source .venv/bin/activate
-            mypy -p issue_tracker_client_api -p issue_tracker_client_impl -p issue_tracker_client_service -p issue_tracker_client_adapter --explicit-package-bases
+            mypy \
+            -p issue_tracker_client_api \
+            -p issue_tracker_client_impl \
+            -p issue_tracker_client_adapter \
+            -p issue_tracker_client_service \
+            -p ai_client_api \
+            -p ai_client_impl \
+            --explicit-package-bases
 
   # Job 5: Integration Tests with Real Credentials
   integration_test:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
     steps:
       - attach_workspace:
           at: .
@@ -149,10 +160,34 @@ jobs:
       - store_artifacts:
           path: test-results/integration
 
+  # Job 6b: E2E Tests - dedicated tier for tests/e2e/
+  e2e_test:
+    docker:
+      - image: cimg/python:3.13
+    environment:
+      CHAT_CLIENT_IMPL_MODULE: discord_client_impl
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Create Test Results Directory"
+          command: mkdir -p test-results/e2e
+      - run:
+          name: "Execute E2E Test Suite"
+          command: |
+            source .venv/bin/activate
+            pytest tests/e2e/ \
+                   --junitxml=test-results/e2e/junit.xml -v \
+                   --no-cov
+      - store_test_results:
+          path: test-results/e2e
+      - store_artifacts:
+          path: test-results/e2e
+
   # Job 6: Coverage Report - generates browsable HTML coverage report
   coverage_report:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     steps:
       - attach_workspace:
           at: .
@@ -165,30 +200,143 @@ jobs:
           path: htmlcov
           destination: coverage-report
 
-  # Job 7: Deploy to Render (hw-2 branch only)
-  deploy:
+  # Job 7: Build Docker image and push to GCP Artifact Registry
+  build_and_push_image:
+    docker:
+      - image: google/cloud-sdk:slim
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: "Install Docker CLI"
+          command: |
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
+      - run:
+          name: "Authenticate to GCP"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+            gcloud config set project "$GCP_PROJECT_ID"
+      - run:
+          name: "Configure Docker for Artifact Registry"
+          command: |
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      - run:
+          name: "Build and Push Docker Image"
+          command: |
+            REGION="$(echo "${GCP_REGION}" | tr -d '[:space:]')"
+            PROJECT="$(echo "${GCP_PROJECT_ID}" | tr -d '[:space:]')"
+            IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/issue-tracker/service"
+            docker build -t "${IMAGE}:${CIRCLE_SHA1}" -t "${IMAGE}:latest" .
+            docker push "${IMAGE}:${CIRCLE_SHA1}"
+            docker push "${IMAGE}:latest"
+
+  # Job 7b: Build Discord bot Docker image and push to Artifact Registry
+  build_and_push_bot_image:
+    docker:
+      - image: google/cloud-sdk:slim
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: "Install Docker CLI"
+          command: |
+            curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz \
+              | tar xz --strip-components=1 -C /usr/local/bin docker/docker
+      - run:
+          name: "Authenticate to GCP"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+            gcloud config set project "$GCP_PROJECT_ID"
+      - run:
+          name: "Configure Docker for Artifact Registry"
+          command: |
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      - run:
+          name: "Build and Push Bot Image"
+          command: |
+            REGION="$(echo "${GCP_REGION}" | tr -d '[:space:]')"
+            PROJECT="$(echo "${GCP_PROJECT_ID}" | tr -d '[:space:]')"
+            IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/issue-tracker/discord-bot"
+            docker build -f Dockerfile.bot -t "${IMAGE}:${CIRCLE_SHA1}" -t "${IMAGE}:latest" .
+            docker push "${IMAGE}:${CIRCLE_SHA1}"
+            docker push "${IMAGE}:latest"
+
+  # Job 8: Terraform Plan — preview infrastructure changes
+  terraform_plan:
+    docker:
+      - image: hashicorp/terraform:1.9
+    steps:
+      - checkout
+      - run:
+          name: "Terraform Init & Plan"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+            cd infrastructure/terraform
+            terraform init -input=false
+            terraform plan -input=false -lock-timeout=120s \
+              -var="enable_service=true" \
+              -var="image_tag=${CIRCLE_SHA1}" \
+              -var="redirect_uri=${TF_VAR_redirect_uri}"
+
+  # Job 9: Terraform Apply — deploy infrastructure (hw-3 branch only)
+  # Persists the service URL so verify_health can read it without manual config.
+  terraform_apply:
+    docker:
+      - image: hashicorp/terraform:1.9
+    steps:
+      - checkout
+      - run:
+          name: "Terraform Init & Apply"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+            cd infrastructure/terraform
+            terraform init -input=false
+            terraform apply -auto-approve -input=false -lock-timeout=120s \
+              -var="enable_service=true" \
+              -var="image_tag=${CIRCLE_SHA1}" \
+              -var="redirect_uri=${TF_VAR_redirect_uri}"
+      - run:
+          name: "Export service URL"
+          command: |
+            echo "$GOOGLE_CREDENTIALS_B64" | base64 -d > /tmp/gcp-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+            cd infrastructure/terraform
+            terraform output -raw service_url > /tmp/service_url.txt
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - service_url.txt
+
+  # Job 10: Verify health after deployment
+  # Reads the Cloud Run URL from Terraform output (persisted by terraform_apply).
+  verify_health:
     docker:
       - image: cimg/base:current
     steps:
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
-          name: "Trigger Render Deploy"
+          name: "Health Check"
           command: |
-            curl -s "$RENDER_DEPLOY_HOOK_URL"
-            echo "Deploy triggered on Render"
-      - run:
-          name: "Verify Health Endpoint"
-          command: |
-            echo "Waiting for deploy to complete..."
-            for i in $(seq 1 18); do
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_SERVICE_URL/health")
-              if [ "$HTTP_STATUS" -eq 200 ]; then
-                echo "Health check passed (HTTP $HTTP_STATUS)"
+            SERVICE_URL=$(cat /tmp/workspace/service_url.txt)
+            echo "Checking health at: ${SERVICE_URL}/health"
+            for i in 1 2 3 4 5 6 7 8; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health" || true)
+              if [ "$STATUS" = "200" ]; then
+                echo "Health check passed (attempt $i)"
                 exit 0
               fi
-              echo "Attempt $i/18: HTTP $HTTP_STATUS, retrying in 10s..."
+              echo "Attempt $i: status=$STATUS, retrying in 10s..."
               sleep 10
             done
-            echo "Health check failed after 3 minutes"
+            echo "Health check failed after 8 attempts"
             exit 1
 
 
@@ -210,15 +358,99 @@ workflows:
       - integration_test:
           requires:
             - unit_test
+      - e2e_test:
+          requires:
+            - unit_test
       - coverage_report:
           requires:
             - unit_test
             - integration_test
-      - deploy:
+            - e2e_test
+
+  # Deploy workflow: Build image → Terraform → Health check
+  deploy_to_cloud_run:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - lint:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - type_check:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - unit_test:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - e2e_test:
+          requires:
+            - unit_test
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - build_and_push_image:
           requires:
             - lint
             - type_check
-            - coverage_report
+            - unit_test
+            - e2e_test
           filters:
             branches:
-              only: hw-2
+              only:
+                - main
+                - hw-3
+      - build_and_push_bot_image:
+          requires:
+            - lint
+            - type_check
+            - unit_test
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - terraform_plan:
+          requires:
+            - build_and_push_image
+            - build_and_push_bot_image
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - terraform_apply:
+          requires:
+            - terraform_plan
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3
+      - verify_health:
+          requires:
+            - terraform_apply
+          filters:
+            branches:
+              only:
+                - main
+                - hw-3

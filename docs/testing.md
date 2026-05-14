@@ -4,11 +4,14 @@ This document explains the testing strategy and how to run different types of te
 
 The repository follows a component-based architecture. Tests validate:
 
-- API contract correctness
-- Implementation behavior
-- Dependency injection (DI) registration
-- Trello integration (when credentials are available)
-- End-to-end workflow behavior
+- issue tracker API contract correctness,
+- Trello implementation behavior,
+- AI client contract and OpenAI implementation behavior,
+- dependency injection registration,
+- AI tool-call execution,
+- cross-vertical Chat integration through Discord,
+- Trello integration when credentials are available,
+- end-to-end workflow behavior.
 
 
 ## Test Markers
@@ -17,16 +20,16 @@ The project uses pytest markers to categorize tests based on their requirements 
 
 ### Core Test Types
 
-- `unit`: Fast, isolated tests that do not require external dependencies
-- `integration`: Tests that verify API + implementation interaction
+- `unit`: Fast, isolated tests that do not require external services
+- `integration`: Tests that verify component wiring, service behavior, AI tool-call flow, and cross-vertical behavior
 - `e2e`: End-to-end tests validating complete application workflows
 
 ### Environment-Specific Markers
 
 - `circleci`: Tests safe to run in CI/CD environments
-- `local_credentials`: Tests that require local Trello credentials (environment variables)
+- `local_credentials`: Tests that require real external credentials, such as Trello or Discord credentials
 
-> Note: This project authenticates to Trello via environment variables (not `credentials.json` / `token.json`). We keep the `local_credentials` marker to distinguish tests that require **real** credentials from tests that can run anywhere.
+> Note: This project authenticates to external providers through environment variables. The `local_credentials` marker distinguishes tests that require real provider credentials from tests that can run anywhere.
 
 ## Running Tests
 
@@ -36,44 +39,75 @@ The project uses pytest markers to categorize tests based on their requirements 
 uv run pytest components/ -m unit
 ```
 These tests:
-- Mock Trello API calls
-- Verify domain model mapping
-- Validate contract behavior
-- Confirm DI registration works
+- mock provider SDKs and network calls,
+- verify domain model mapping,
+- validate issue tracker and AI contracts,
+- confirm dependency injection registration works,
+- keep behavior deterministic and fast.
 
-### CircleCI-Compatible Tests Only
+
+### CircleCI-Safe Tests Only
 
 ```bash
-uv run pytest -m circleci
+uv run pytest components/ tests/ -m "not local_credentials"
 ```
 
 These tests:
-- Do not require local credential files
-- Validate DI wiring and factory functions
-- Ensure non-interactive execution
-- Confirm expected failure behavior when credentials are invalid
+- avoid real provider credentials,
+- validate dependency injection wiring and factory functions,
+- exercise deterministic AI tool-call paths,
+- verify non-interactive execution,
+- confirm expected failure or skip behavior when credentials are missing.
 
-### Local Tests Only (Requires Credentials)
+### Local Credential Tests
 
 ```bash
 uv run pytest -m local_credentials
 ```
-These tests:
-- Make real Trello API calls
-- Validate real authentication
-- Confirm correct response parsing
-- Verify full implementation behavior
+These tests may:
+- make real Trello API calls,
+- send or read messages through a sandbox Discord channel,
+- validate real authentication,
+- confirm provider response parsing,
+- verify full implementation behavior across a live provider boundary.
 
 ### Integration Tests
 
 ```bash
-uv run pytest -m integration
+uv run pytest tests/integration/ -m integration
 ```
+
 These tests verify:
-- API contract and implementation compatibility
-- Factory wiring via `get_client()`
-- Mapping of provider responses into domain models
-- Cross-component interaction (with or without mocks)
+- API contract and implementation compatibility,
+- factory wiring through `get_client()`,
+- mapping of provider responses into domain models,
+- service route behavior,
+- AI tool-call execution,
+- cross-component interaction,
+- cross-vertical Chat integration.
+
+### Real Discord Cross-Vertical Test
+
+Most integration tests use deterministic fakes so they are safe for CI and local development without external credentials. The project also includes a credential-gated test that uses the real shared Chat API and Team 8's Discord implementation:
+
+```text
+tests/integration/test_real_discord_cross_vertical.py
+```
+
+This test intentionally keeps OpenAI and Trello fake so the AI tool call and issue creation are deterministic. It does **not** fake the Chat vertical. Instead, it imports the real Discord provider, resolves it through the shared `chat_client_api.get_client()` factory, sends a message to a sandbox Discord channel, and reads recent messages back through the same provider.
+
+Run it manually with:
+
+```bash
+DISCORD_INTEGRATION_TESTS=1 \
+DISCORD_BOT_TOKEN="your_discord_bot_token" \
+DISCORD_GUILD_ID="your_discord_server_id" \
+DISCORD_NOTIFY_CHANNEL_ID="your_sandbox_channel_id" \
+uv run pytest tests/integration/test_real_discord_cross_vertical.py \
+  -m local_credentials -rs
+```
+
+`DISCORD_INTEGRATION_TESTS=1` is a safety switch so real Discord messages are not sent during normal test runs.
 
 ### E2E Tests
 
@@ -81,108 +115,136 @@ These tests verify:
 uv run pytest -m e2e
 ```
 These tests verify:
-- Full workflow from client acquisition to Trello interaction
-- End-to-end behavior through public APIs only
-- Correct domain-level outputs
+- full workflow behavior through public APIs,
+- application entrypoint behavior,
+- correct domain-level outputs,
+- deployed or fully wired service behavior where applicable.
 
 ### Exclude Credential-Dependent Tests
 
 ```bash
 uv run pytest -m "not local_credentials"
 ```
-Useful when running locally without Trello credentials.
+Useful when running locally without Trello, OpenAI, or Discord credentials.
 
 ## Test Categories by Environment
 
-### CircleCI / CI Environment
+### CircleCI Environment
 
-Tests marked with `@pytest.mark.circleci` are safe to run in CI environments:
+CI-safe tests should avoid real network calls unless a job is explicitly configured with credentials.
 
-- **Requirements**: 
-- No local credential files required
-- Non-interactive execution only
-- Environment variables may or may not be present
+Requirements:
+- no local credential files,
+- non-interactive execution,
+- deterministic behavior,
+- no real Discord messages unless the credential-gated test is explicitly enabled.
 
-- **What they test**:
-  - Imports and packaging correctness
-  - Dependency injection registration
-  - `get_client()` behavior
-  - Contract compliance (API ↔ implementation integration)
-  - Clean skipping/failure behavior when credentials are missing
+What they test:
+- imports and packaging correctness,
+- dependency injection registration,
+- `get_client()` behavior,
+- contract compliance,
+- deterministic AI tool-call behavior,
+- clean skipping or failure behavior when credentials are missing.
 
-Example CI command:
+Example CI-safe command:
 
 ```bash
-uv run pytest -m circleci --tb=short
+uv run pytest components/ tests/ -m "not local_credentials" --tb=short
 ```
 
 ### Local Development
 
-Tests marked with `@pytest.mark.local_credentials` require real Trello credentials:
+Tests marked with `@pytest.mark.local_credentials` require real external credentials. 
 
 - **Requirements**:
-  - Valid `TRELLO_API_KEY`, `TRELLO_API_TOKEN` and `TRELLO_BOARD_ID` in environment
-  - Network access
+  - valid `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, and `TRELLO_BOARD_ID` for Trello tests,
+  - valid `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, and `DISCORD_NOTIFY_CHANNEL_ID` for real Discord tests,
+  - network access.
 
 - **What they test**:
-  - Real Trello API connectivity
-  - Board and card retrieval
-  - Correct domain model construction
-  - Full workflows (create/list/comment/close)
-  - End-to-end functionality
+  - real Trello API connectivity,
+  - board and card retrieval,
+  - correct domain model construction,
+  - full issue workflows,
+  - real Discord send/read behavior through the shared Chat API.
 
-## Environment Variables(CI or Local)
 
-Set these environment variables in your environment:
+## Environment Variables
+
+Set these environment variables as needed for local or CI runs:
 
 ```bash
-export TRELLO_API_KEY="your_api_key"
-export TRELLO_API_TOKEN="your_api_token"
-export TRELLO_BOARD_ID="your_board_id"  # required for E2E tests
-```
+export TRELLO_API_KEY="your_trello_api_key"
+export TRELLO_API_TOKEN="your_trello_api_token"
+export TRELLO_BOARD_ID="your_trello_board_id"
 
-# Test Examples
+export OPENAI_API_KEY="your_openai_api_key"
+
+export CHAT_CLIENT_IMPL_MODULE="discord_client_impl"
+export DISCORD_BOT_TOKEN="your_discord_bot_token"
+export DISCORD_GUILD_ID="your_discord_server_id"
+export DISCORD_NOTIFY_CHANNEL_ID="your_sandbox_channel_id"
+```
+`TRELLO_BOARD_ID` is required for tests that create, list, or update real Trello cards. `DISCORD_INTEGRATION_TESTS=1` is additionally required to run the real Discord cross-vertical test.
+
+## Test Examples
 
 ### Running Tests Without Network Calls
+
 ```bash
-# Only run tests that don't make real API calls
-uv run pytest -m "unit or (circleci and not local_credentials)"
+uv run pytest components/ tests/ -m "not local_credentials"
 ```
 
 ### Running Full Local Test Suite
+
 ```bash
-# Run all tests including those requiring real credentials
 uv run pytest
 ```
 
-### Debugging Authentication Issues
+### Running Only AI-Related Tests
+
 ```bash
-# Run only authentication-related tests
+uv run pytest -k "ai" -v
+```
+
+### Running Only Discord-Related Tests
+
+```bash
+uv run pytest -k "discord" -v
+```
+
+### Debugging Authentication Issues
+
+```bash
 uv run pytest -k "auth" -v
 ```
 
 ## Expected Behavior in Different Environments
 
-### Local Development (with credentials)
+### Local Development with Credentials
 
-- Unit tests pass
-- Real Trello API calls succeed
-- E2E tests pass (when `TRELLO_BOARD_ID` and is accessible)
+- Unit tests pass.
+- Credential-gated Trello tests can call the real Trello API.
+- Credential-gated Discord tests can send/read messages in the sandbox Discord channel when `DISCORD_INTEGRATION_TESTS=1`.
+- End-to-end tests pass when `TRELLO_BOARD_ID` is set and accessible.
 
-### Local Development (without credentials)
+### Local Development without Credentials
 
-- Unit tests pass
-- Credential-dependent tests are skipped with clear messages
-- No hanging or interactive prompts
+- Unit tests pass.
+- CI-safe integration tests pass.
+- Credential-dependent tests skip cleanly or are excluded with `-m "not local_credentials"`.
+- No hanging or interactive prompts occur.
 
-### CircleCI (with environment variables)
+### CI with Environment Variables
 
-- Tests marked `circleci` pass
-- Tests marked `local_credentials` run (if enabled) or are skipped
-- Fast execution (no timeouts)
+- CI-safe tests pass.
+- Credential-dependent tests run only if the job explicitly includes the required secrets.
+- Coverage is generated.
+- Test results are uploaded to CircleCI.
 
-### CircleCI (without environment variables)
+### CI without Environment Variables
 
-- `circleci` tests still pass
-- Credential-dependent tests skip cleanly
-- No failures caused solely to missing credentials
+- CI-safe tests still pass.
+- Credential-dependent tests are skipped or excluded.
+- No failures are caused solely by missing local credentials.

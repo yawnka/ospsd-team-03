@@ -1,68 +1,47 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
-from ...models.add_comment_in import AddCommentIn
-from ...models.comment_out import CommentOut
+from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...models.success_out import SuccessOut
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     *,
-    body: AddCommentIn,
     session_id: None | str | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
-
 
     cookies = {}
     if session_id is not UNSET:
         cookies["session_id"] = session_id
 
-
-
-    
-
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/boards/{board}/issues/{issue_id}/comments".format(board=quote(str(board), safe=""),issue_id=quote(str(issue_id), safe=""),),
+        "method": "delete",
+        "url": "/issues/{issue_id}".format(
+            issue_id=quote(str(issue_id), safe=""),
+        ),
         "cookies": cookies,
     }
 
-    _kwargs["json"] = body.to_dict()
-
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> CommentOut | HTTPValidationError | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> HTTPValidationError | SuccessOut | None:
     if response.status_code == 200:
-        response_200 = CommentOut.from_dict(response.json())
-
-
+        response_200 = SuccessOut.from_dict(response.json())
 
         return response_200
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
-
-
 
         return response_422
 
@@ -72,7 +51,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[CommentOut | HTTPValidationError]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[HTTPValidationError | SuccessOut]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -82,39 +63,30 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 
 
 def sync_detailed(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AddCommentIn,
     session_id: None | str | Unset = UNSET,
+) -> Response[HTTPValidationError | SuccessOut]:
+    """Delete Issue
 
-) -> Response[CommentOut | HTTPValidationError]:
-    """ Add Comment
-
-     Add a comment to an issue.
+     Delete an issue using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
+        issue_id (str):
         session_id (None | str | Unset):
-        body (AddCommentIn): Represent a request to add a comment.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CommentOut | HTTPValidationError]
-     """
-
+        Response[HTTPValidationError | SuccessOut]
+    """
 
     kwargs = _get_kwargs(
-        board=board,
-issue_id=issue_id,
-body=body,
-session_id=session_id,
-
+        issue_id=issue_id,
+        session_id=session_id,
     )
 
     response = client.get_httpx_client().request(
@@ -123,118 +95,94 @@ session_id=session_id,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AddCommentIn,
     session_id: None | str | Unset = UNSET,
+) -> HTTPValidationError | SuccessOut | None:
+    """Delete Issue
 
-) -> CommentOut | HTTPValidationError | None:
-    """ Add Comment
-
-     Add a comment to an issue.
+     Delete an issue using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
+        issue_id (str):
         session_id (None | str | Unset):
-        body (AddCommentIn): Represent a request to add a comment.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CommentOut | HTTPValidationError
-     """
-
+        HTTPValidationError | SuccessOut
+    """
 
     return sync_detailed(
-        board=board,
-issue_id=issue_id,
-client=client,
-body=body,
-session_id=session_id,
-
+        issue_id=issue_id,
+        client=client,
+        session_id=session_id,
     ).parsed
 
+
 async def asyncio_detailed(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AddCommentIn,
     session_id: None | str | Unset = UNSET,
+) -> Response[HTTPValidationError | SuccessOut]:
+    """Delete Issue
 
-) -> Response[CommentOut | HTTPValidationError]:
-    """ Add Comment
-
-     Add a comment to an issue.
+     Delete an issue using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
+        issue_id (str):
         session_id (None | str | Unset):
-        body (AddCommentIn): Represent a request to add a comment.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CommentOut | HTTPValidationError]
-     """
-
+        Response[HTTPValidationError | SuccessOut]
+    """
 
     kwargs = _get_kwargs(
-        board=board,
-issue_id=issue_id,
-body=body,
-session_id=session_id,
-
+        issue_id=issue_id,
+        session_id=session_id,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
 
+
 async def asyncio(
-    board: str,
-    issue_id: int,
+    issue_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AddCommentIn,
     session_id: None | str | Unset = UNSET,
+) -> HTTPValidationError | SuccessOut | None:
+    """Delete Issue
 
-) -> CommentOut | HTTPValidationError | None:
-    """ Add Comment
-
-     Add a comment to an issue.
+     Delete an issue using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
+        issue_id (str):
         session_id (None | str | Unset):
-        body (AddCommentIn): Represent a request to add a comment.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CommentOut | HTTPValidationError
-     """
+        HTTPValidationError | SuccessOut
+    """
 
-
-    return (await asyncio_detailed(
-        board=board,
-issue_id=issue_id,
-client=client,
-body=body,
-session_id=session_id,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            issue_id=issue_id,
+            client=client,
+            session_id=session_id,
+        )
+    ).parsed

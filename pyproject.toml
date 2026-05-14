@@ -1,10 +1,9 @@
-[project]
-name = "ospsd-team-03"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = []
+# ── Workspace ────────────────────────────────────────────────────────────────
+[tool.uv.workspace]
+members = ["components/*"]
 
-[project.optional-dependencies]
+# ── Dev dependencies (PEP 735 dependency groups) ──────────────────────────────
+[dependency-groups]
 dev = [
     "mypy>=1.8",
     "pytest>=8.0",
@@ -15,14 +14,13 @@ dev = [
     "mkdocstrings[python]>=1.0.3",
     "mkdocstrings-python>=1.0.0",
 ]
-# ── Workspace ────────────────────────────────────────────────────────────────
-[tool.uv.workspace]
-members = ["components/*"]
 
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 src = ["components"]
-exclude = ["components/issue_tracker_client_service_client/src"]
+exclude = [
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -43,16 +41,17 @@ ignore = [
 ]
 
 "components/**/tests/**/*.py" = [
+    "D100",
     "D101",
     "D102",
-    "D100",
+    "D103",  # test functions don't need docstrings
     "INP001",
     "S101",
     "SLF001",
 ]
 
 "components/**/src/main.py" = [
-    "INP001",  # standalone dev entry point, not a package module
+    "INP001",
 ]
 
 [tool.ruff.format]
@@ -64,8 +63,14 @@ strict = true
 exclude = [
   "^tests/",
   "^components/.*/tests/",
-  "^components/issue_tracker_client_service_client/src/",
+  "^components/issue_tracker_client_service_client/issue_tracker_client_service_client/",
 ]
+
+# opentelemetry-instrumentation-fastapi ships without complete type stubs.
+# Narrowed to the specific module actually imported rather than the whole namespace.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.instrumentation.fastapi"]
+ignore_missing_imports = true
 
 # ── Pytest ───────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
@@ -77,21 +82,21 @@ markers = [
     "e2e: marks tests as end-to-end tests (slow, full system)",
     "local_credentials: marks tests that require real API credentials (skipped in CI)",
 ]
-# Starlette TestClient warns about per-request cookies set by the auto-generated
-# client's _get_kwargs(); this is harmless in tests and does not affect production.
-filterwarnings = [
-    "ignore:Setting per-request cookies:DeprecationWarning:starlette",
-]
 
 # ── Coverage ─────────────────────────────────────────────────────────────────
 [tool.coverage.run]
 source = ["components"]
 branch = true
-omit = ["components/issue_tracker_client_service_client/src/*"]
+omit = [
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client/*",
+]
 
 [tool.coverage.report]
 show_missing = true
 fail_under = 85 # Justification: A high threshold ensures most code is tested.
+omit = [
+    "components/issue_tracker_client_service_client/src/issue_tracker_client_service_client/*",
+]
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",

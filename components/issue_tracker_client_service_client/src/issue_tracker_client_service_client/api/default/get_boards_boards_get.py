@@ -1,60 +1,48 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
+from ...models.board_out import BoardOut
 from ...models.http_validation_error import HTTPValidationError
-from ...models.issue_out import IssueOut
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
-    board: str,
-    issue_id: int,
     *,
     session_id: None | str | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
 
     cookies = {}
     if session_id is not UNSET:
         cookies["session_id"] = session_id
 
-
-
-    
-
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/boards/{board}/issues/{issue_id}".format(board=quote(str(board), safe=""),issue_id=quote(str(issue_id), safe=""),),
+        "url": "/boards",
         "cookies": cookies,
     }
-
 
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> HTTPValidationError | IssueOut | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> HTTPValidationError | list[BoardOut] | None:
     if response.status_code == 200:
-        response_200 = IssueOut.from_dict(response.json())
+        response_200 = []
+        _response_200 = response.json()
+        for response_200_item_data in _response_200:
+            response_200_item = BoardOut.from_dict(response_200_item_data)
 
-
+            response_200.append(response_200_item)
 
         return response_200
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
-
-
 
         return response_422
 
@@ -64,7 +52,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[HTTPValidationError | IssueOut]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[HTTPValidationError | list[BoardOut]]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -74,20 +64,15 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 
 
 def sync_detailed(
-    board: str,
-    issue_id: int,
     *,
     client: AuthenticatedClient | Client,
     session_id: None | str | Unset = UNSET,
+) -> Response[HTTPValidationError | list[BoardOut]]:
+    """Get Boards
 
-) -> Response[HTTPValidationError | IssueOut]:
-    """ Get Issue
-
-     Fetch a single issue by ID.
+     List boards using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
         session_id (None | str | Unset):
 
     Raises:
@@ -95,15 +80,11 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | IssueOut]
-     """
-
+        Response[HTTPValidationError | list[BoardOut]]
+    """
 
     kwargs = _get_kwargs(
-        board=board,
-issue_id=issue_id,
-session_id=session_id,
-
+        session_id=session_id,
     )
 
     response = client.get_httpx_client().request(
@@ -112,21 +93,17 @@ session_id=session_id,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
-    board: str,
-    issue_id: int,
     *,
     client: AuthenticatedClient | Client,
     session_id: None | str | Unset = UNSET,
+) -> HTTPValidationError | list[BoardOut] | None:
+    """Get Boards
 
-) -> HTTPValidationError | IssueOut | None:
-    """ Get Issue
-
-     Fetch a single issue by ID.
+     List boards using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
         session_id (None | str | Unset):
 
     Raises:
@@ -134,33 +111,25 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | IssueOut
-     """
-
+        HTTPValidationError | list[BoardOut]
+    """
 
     return sync_detailed(
-        board=board,
-issue_id=issue_id,
-client=client,
-session_id=session_id,
-
+        client=client,
+        session_id=session_id,
     ).parsed
 
+
 async def asyncio_detailed(
-    board: str,
-    issue_id: int,
     *,
     client: AuthenticatedClient | Client,
     session_id: None | str | Unset = UNSET,
+) -> Response[HTTPValidationError | list[BoardOut]]:
+    """Get Boards
 
-) -> Response[HTTPValidationError | IssueOut]:
-    """ Get Issue
-
-     Fetch a single issue by ID.
+     List boards using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
         session_id (None | str | Unset):
 
     Raises:
@@ -168,38 +137,28 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | IssueOut]
-     """
-
+        Response[HTTPValidationError | list[BoardOut]]
+    """
 
     kwargs = _get_kwargs(
-        board=board,
-issue_id=issue_id,
-session_id=session_id,
-
+        session_id=session_id,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
 
+
 async def asyncio(
-    board: str,
-    issue_id: int,
     *,
     client: AuthenticatedClient | Client,
     session_id: None | str | Unset = UNSET,
+) -> HTTPValidationError | list[BoardOut] | None:
+    """Get Boards
 
-) -> HTTPValidationError | IssueOut | None:
-    """ Get Issue
-
-     Fetch a single issue by ID.
+     List boards using the shared API contract.
 
     Args:
-        board (str):
-        issue_id (int):
         session_id (None | str | Unset):
 
     Raises:
@@ -207,14 +166,12 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | IssueOut
-     """
+        HTTPValidationError | list[BoardOut]
+    """
 
-
-    return (await asyncio_detailed(
-        board=board,
-issue_id=issue_id,
-client=client,
-session_id=session_id,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            session_id=session_id,
+        )
+    ).parsed
